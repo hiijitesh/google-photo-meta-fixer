@@ -27,7 +27,7 @@ while IFS= read -r cmd; do
     wait
     count=0
   fi
-done < rclone_upload_trash.txt
+done < logs/rclone_upload_trash.txt
 
 # Wait for the remaining background jobs to finish
 wait

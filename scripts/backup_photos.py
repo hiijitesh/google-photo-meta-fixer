@@ -7,7 +7,7 @@ def main():
     print("=== Google Photos -> Google Drive Rclone Matcher ===")
 
     # 1. Load the metadata CSV from the Toolkit's "Export Metadata" button
-    csv_path = "metadata.csv"
+    csv_path = "data/csv/metadata.csv"
     if not os.path.exists(csv_path):
         print(f"Error: {csv_path} not found.")
         print("Please use the GPTK 'Export Metadata' button and save the file as metadata.csv")
@@ -80,8 +80,8 @@ def main():
     backup_folder = "photos_backUp"
     print(f"Backup destination: {remote_name}{backup_folder}/<year>/<filename>")
 
-    output_script = "run_backup.sh"
-    commands_file = "rclone_commands.txt"
+    output_script = "scripts/run_backup.sh"
+    commands_file = "logs/rclone_commands.txt"
     matched_count = 0
     duplicate_count = 0
     missing_files = []
@@ -145,7 +145,7 @@ def main():
     print(f"\nGenerated: {output_script}")
 
     if missing_files:
-        with open("missing_files.txt", "w", encoding="utf-8") as f:
+        with open("logs/missing_files.txt", "w", encoding="utf-8") as f:
             for m in missing_files:
                 f.write(m + "\n")
         print(f"Missing files saved to: missing_files.txt")

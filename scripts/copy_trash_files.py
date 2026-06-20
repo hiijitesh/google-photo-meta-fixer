@@ -3,97 +3,77 @@ import json
 import os
 
 def main():
-    csv_path = "trash_metadata_completed.csv"
+    csv_path = "data/csv/trash_metadata_completed.csv"
     drive_index_path = "drive_index.json"
     remote_name = "jiteshece:"
-    target_remote = 'jiteshece,root_folder_id="1nK_SdHbpw-yhmR1lbnxILhujpM7Us-5G":'
+    base_backup_folder = "photos_backUp/Recovered_Trash"
 
-    # 1. Read CSV
     target_files = []
     with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             filename = row.get("fileName", "").strip()
-            size_bytes = row.get("sizeBytes", "").strip()
-
             if not filename:
                 continue
-            
-            if size_bytes:
-                size_bytes = int(size_bytes)
+
+            taken_at = row.get("takenAt", "").strip()
+            year = "Unknown_Year"
+            if taken_at and len(taken_at) >= 4:
+                year = taken_at[:4]
+
+            duration_ms = row.get("durationMs", "").strip()
+            # If duration is present, or extension is mp4/mov, it's a Video
+            ext = filename.lower().split('.')[-1]
+            if duration_ms or ext in ['mp4', 'mov', 'avi']:
+                media_type = "Videos"
             else:
-                size_bytes = None
-            
+                media_type = "Photos"
+
             target_files.append({
                 "name": filename,
-                "size": size_bytes
+                "year": year,
+                "media_type": media_type
             })
 
-    # 2. Read drive index and group by name and size
-    print("Loading drive_index.json...")
     with open(drive_index_path, "r", encoding="utf-8") as f:
         drive_data = json.load(f)
 
-    drive_by_name = {}
-    drive_by_size = {}
-    
+    drive_lookup = {}
     for item in drive_data:
         if item.get("IsDir", False):
             continue
-            
-        name = item.get("Name", "")
-        if name:
-            if name not in drive_by_name:
-                drive_by_name[name] = []
-            drive_by_name[name].append(item)
-            
-        size = item.get("Size", 0)
-        if size:
-            if size not in drive_by_size:
-                drive_by_size[size] = []
-            drive_by_size[size].append(item)
+        name = item["Name"]
+        if name not in drive_lookup:
+            drive_lookup[name] = []
+        drive_lookup[name].append(item)
 
-    # 3. Match
-    commands_file = "rclone_copy_to_specific_folder.txt"
-    output_script = "run_copy_to_specific_folder.sh"
+    commands_file = "logs/rclone_commands_trash.txt"
+    output_script = "scripts/run_backup_trash.sh"
     matched_count = 0
     missing_files = []
 
     with open(commands_file, "w", encoding="utf-8") as cf:
         for entry in target_files:
             filename = entry["name"]
-            size = entry["size"]
+            year = entry["year"]
+            media_type = entry["media_type"]
 
-            # Try by name first
-            candidates = drive_by_name.get(filename, [])
-
-            if not candidates:
-                # Try case insensitive by name
-                for k, v in drive_by_name.items():
-                    if k.lower() == filename.lower():
-                        candidates = v
-                        break
-                        
-            # If still not found, try by size
-            if not candidates and size:
-                candidates = drive_by_size.get(size, [])
-
-            if not candidates:
+            if filename not in drive_lookup:
                 missing_files.append(filename)
                 continue
 
-            best_match = candidates[0]
-            source_path = best_match["Path"]
-            target_path = filename
+            # Pick the first match
+            drive_matches = drive_lookup[filename]
+            source_path = drive_matches[0]["Path"]
+            target_path = f"{base_backup_folder}/{media_type}/{year}/{filename}"
 
-            cmd = f'rclone copyto --ignore-existing "{remote_name}{source_path}" "{target_remote}{target_path}"'
+            cmd = f'rclone copyto --ignore-existing "{remote_name}{source_path}" "{remote_name}{target_path}"'
             cf.write(cmd + "\n")
             matched_count += 1
 
-    # 4. Write script
     with open(output_script, "w", encoding="utf-8") as f:
         f.write("#!/bin/bash\n")
-        f.write(f"# Auto-generated rclone copy script to specific folder — {matched_count} files, 10 at a time\n\n")
+        f.write(f"# Auto-generated rclone copy script — {matched_count} files, 10 at a time\n\n")
         f.write("MAX_JOBS=10\n")
         f.write("PIDS=()\n\n")
         f.write("run_jobs() {\n")
@@ -114,7 +94,7 @@ def main():
         f.write("  done < " + commands_file + "\n")
         f.write("  wait\n")
         f.write("}\n\n")
-        f.write(f'echo "Starting server-side copy of {matched_count} files to target folder (up to 10 parallel)..."\n')
+        f.write(f'echo "Starting copy of {matched_count} files into {base_backup_folder}/ (up to 10 parallel)..."\n')
         f.write("echo \"\"\n")
         f.write("run_jobs\n")
         f.write("echo \"\"\n")
@@ -125,7 +105,7 @@ def main():
     print(f"Matched: {matched_count}")
     print(f"Missing: {len(missing_files)}")
     if missing_files:
-        with open("missing_files_specific_folder.txt", "w", encoding="utf-8") as f:
+        with open("logs/missing_files_trash.txt", "w", encoding="utf-8") as f:
             for m in missing_files:
                 f.write(m + "\n")
 

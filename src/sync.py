@@ -49,7 +49,7 @@ def cmd_sync_backup(remote_name):
         print("No matching files found.")
         return
 
-    drive_index_path = "drive_index.json"
+    drive_index_path = "data/json/drive_index.json"
     if not os.path.exists(drive_index_path):
         print("Error: drive_index.json not found.")
         return
@@ -101,7 +101,7 @@ def cmd_sync_trash(remote_name):
 
             target_files.append({"name": filename, "year": year, "media_type": media_type})
 
-    drive_index_path = "drive_index.json"
+    drive_index_path = "data/json/drive_index.json"
     if not os.path.exists(drive_index_path):
         print("Error: drive_index.json not found.")
         return

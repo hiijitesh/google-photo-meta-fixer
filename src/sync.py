@@ -3,9 +3,10 @@ import subprocess
 import json
 import csv
 from pathlib import Path
+from src.logger import log
 
 def run_rclone_commands(commands, max_jobs=10):
-    print(f"Executing {len(commands)} rclone commands ({max_jobs} parallel)...")
+    log.info(f"Executing {len(commands)} rclone commands ({max_jobs} parallel)...")
     # Write to a temporary file
     script_path = "logs/rclone_commands_auto.sh"
     with open(script_path, "w", encoding="utf-8") as f:
@@ -22,14 +23,16 @@ def run_rclone_commands(commands, max_jobs=10):
         f.write("wait\n")
 
     os.chmod(script_path, 0o755)
-    subprocess.run(["bash", script_path], check=True)
-    print("Execution complete.")
+    log_file_path = "logs/rclone_execution.log"
+    with open(log_file_path, "a", encoding="utf-8") as log_file:
+        subprocess.run(["bash", script_path], stdout=log_file, stderr=log_file, check=True)
+    log.info("Execution complete. (Logs saved to logs/rclone_execution.log)")
 
 def cmd_sync_backup(remote_name):
-    print("=== Google Photos -> Google Drive Backup Matcher ===")
+    log.info("=== Google Photos -> Google Drive Backup Matcher ===")
     csv_path = "data/csv/metadata.csv"
     if not os.path.exists(csv_path):
-        print(f"Error: {csv_path} not found.")
+        log.error(f"Error: {csv_path} not found.")
         return
 
     target_files = []
@@ -46,12 +49,12 @@ def cmd_sync_backup(remote_name):
             target_files.append({"name": filename, "year": year})
 
     if not target_files:
-        print("No matching files found.")
+        log.warning("No matching files found.")
         return
 
     drive_index_path = "data/json/drive_index.json"
     if not os.path.exists(drive_index_path):
-        print("Error: drive_index.json not found.")
+        log.error("Error: drive_index.json not found.")
         return
 
     with open(drive_index_path, "r", encoding="utf-8") as f:
@@ -74,16 +77,16 @@ def cmd_sync_backup(remote_name):
         target_path = f"photos_backUp/{entry['year']}/{filename}"
         commands.append(f'rclone copyto --ignore-existing "{remote_name}{source_path}" "{remote_name}{target_path}"')
 
-    print(f"Matched: {len(commands)}, Missing: {len(missing_files)}")
+    log.info(f"Matched: {len(commands)}, Missing: {len(missing_files)}")
     if commands:
         if input("Run backup now? (y/n): ").strip().lower() == 'y':
             run_rclone_commands(commands)
 
 def cmd_sync_trash(remote_name):
-    print("=== Google Photos -> Trash Sync ===")
+    log.info("=== Google Photos -> Trash Sync ===")
     csv_path = "data/csv/trash_metadata_completed.csv"
     if not os.path.exists(csv_path):
-        print(f"Error: {csv_path} not found.")
+        log.error(f"Error: {csv_path} not found.")
         return
 
     target_files = []
@@ -103,7 +106,7 @@ def cmd_sync_trash(remote_name):
 
     drive_index_path = "data/json/drive_index.json"
     if not os.path.exists(drive_index_path):
-        print("Error: drive_index.json not found.")
+        log.error("Error: drive_index.json not found.")
         return
 
     with open(drive_index_path, "r", encoding="utf-8") as f:
@@ -129,8 +132,7 @@ def cmd_sync_trash(remote_name):
         target_path = f"{base_backup_folder}/{entry['media_type']}/{entry['year']}/{filename}"
         commands.append(f'rclone copyto --ignore-existing "{remote_name}{source_path}" "{remote_name}{target_path}"')
 
-    print(f"Matched: {len(commands)}, Missing: {len(missing_files)}")
+    log.info(f"Matched: {len(commands)}, Missing: {len(missing_files)}")
     if commands:
         if input("Run sync now? (y/n): ").strip().lower() == 'y':
             run_rclone_commands(commands)
-

@@ -177,7 +177,7 @@
     "Name": "IMG_20191024_135553.jpg",
     "Size": 195727,
     "LocalPath": "Blur_Photos-3-001/IMG_20191024_135553.jpg",
-    "MatchedCSV": false
+    "MatchedCSV": "FixedFromFilename"
   },
   {
     "Name": "00100sPORTRAIT_00100_BURST20211206080445764_COVER-01.jpeg",
@@ -585,7 +585,7 @@
     "Name": "IMG_20211209_171537.jpg",
     "Size": 5492700,
     "LocalPath": "Trashed Photos-3-001/IMG_20211209_171537.jpg",
-    "MatchedCSV": false
+    "MatchedCSV": "FixedFromFilename"
   },
   {
     "Name": "VID_20210823_150122.mp4",
@@ -621,7 +621,7 @@
     "Name": "IMG_20211209_171535.jpg",
     "Size": 5416380,
     "LocalPath": "Trashed Photos-3-001/IMG_20211209_171535.jpg",
-    "MatchedCSV": false
+    "MatchedCSV": "FixedFromFilename"
   },
   {
     "Name": "VID_20211219_004137.mp4",
@@ -657,7 +657,7 @@
     "Name": "00100sPORTRAIT_00100_BURST20220406075531941_COVER.jpg",
     "Size": 5444046,
     "LocalPath": "Trashed Photos-3-001/00100sPORTRAIT_00100_BURST20220406075531941_COVER.jpg",
-    "MatchedCSV": false
+    "MatchedCSV": "FixedFromFilename"
   },
   {
     "Name": "MVIMG_20220423_105559.jpg",
@@ -693,7 +693,7 @@
     "Name": "IMG20230930185409-01.jpeg",
     "Size": 5687504,
     "LocalPath": "Trashed Photos-3-001/IMG20230930185409-01.jpeg",
-    "MatchedCSV": false
+    "MatchedCSV": "FixedFromFilename"
   },
   {
     "Name": "VID_20210613_214517.mp4",
@@ -789,7 +789,7 @@
     "Name": "IMG_20211209_171542.jpg",
     "Size": 5642298,
     "LocalPath": "Trashed Photos-3-001/IMG_20211209_171542.jpg",
-    "MatchedCSV": false
+    "MatchedCSV": "FixedFromFilename"
   },
   {
     "Name": "VID_20211201_125051.mp4",
@@ -843,7 +843,7 @@
     "Name": "Screen Recording 2024-12-24 at 12.59.06\u202fAM.mov",
     "Size": 6207423,
     "LocalPath": "Trashed Photos-3-001/Screen Recording 2024-12-24 at 12.59.06\u202fAM.mov",
-    "MatchedCSV": false
+    "MatchedCSV": "FixedFromFilename"
   },
   {
     "Name": "VID_20210711_163708.mp4",
@@ -1107,7 +1107,7 @@
     "Name": "VID_20211117_124836.mp4",
     "Size": 50700822,
     "LocalPath": "Trashed Photos-3-001/VID_20211117_124836.mp4",
-    "MatchedCSV": false
+    "MatchedCSV": "FixedFromFilename"
   },
   {
     "Name": "IMG_20220313_222910399_MF_PORTRAIT.jpg",

@@ -15,7 +15,7 @@ UNMATCHED_OUTPUT = 'trashed_v2_unmatched.json'
 
 # Regex patterns
 RE_UNIX_MS = re.compile(r'^(\d{13})')
-RE_DATE_TIME = re.compile(r'((?:19|20)\d{2})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})')
+RE_DATE_TIME = re.compile(r'((?:19|20)\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})')
 
 def parse_filename_time(filename):
     """Try to extract a naive local datetime from the filename."""
@@ -25,7 +25,7 @@ def parse_filename_time(filename):
         ts_ms = int(ms_match.group(1))
         # This will give the local datetime
         return datetime.fromtimestamp(ts_ms / 1000.0)
-    
+
     # Try typical YYYYMMDD_HHMMSS
     dt_match = RE_DATE_TIME.search(filename)
     if dt_match:
@@ -34,7 +34,7 @@ def parse_filename_time(filename):
             return datetime(year, month, day, hour, minute, second)
         except ValueError:
             pass # Invalid date
-            
+
     return None
 
 def main():
@@ -58,20 +58,20 @@ def main():
             taken_at_str = row.get('takenAt', '')
             if not taken_at_str:
                 continue
-            
+
             # Parse takenAt e.g. 2021-07-28T06:54:29.891Z
             try:
                 # Remove Z and parse
                 taken_at_str = taken_at_str.replace('Z', '+00:00')
                 utc_dt = datetime.fromisoformat(taken_at_str)
-                
+
                 # Get offset
                 offset_ms = row.get('timezoneOffsetMs', '')
                 offset_ms = int(offset_ms) if offset_ms else 0
-                
+
                 # Compute naive local datetime
                 local_dt = (utc_dt + timedelta(milliseconds=offset_ms)).replace(tzinfo=None)
-                
+
                 csv_entries.append({
                     'utc_dt': utc_dt,
                     'local_dt': local_dt,
@@ -94,28 +94,37 @@ def main():
         if not dir_path.exists() or not dir_path.is_dir():
             print(f"Directory {dir_name} not found, skipping...")
             continue
-            
+
         for filepath in dir_path.iterdir():
             if not filepath.is_file():
                 continue
-                
+
             files_processed += 1
             filename = filepath.name
             filesize = filepath.stat().st_size
-            
+
             # Match to CSV timestamp
             local_time_from_name = parse_filename_time(filename)
             best_csv_match = None
-            
+
             if local_time_from_name and csv_entries:
-                # Find closest CSV entry
-                closest_entry = min(csv_entries, key=lambda x: abs((x['local_dt'] - local_time_from_name).total_seconds()))
-                diff_seconds = abs((closest_entry['local_dt'] - local_time_from_name).total_seconds())
+                # Find closest CSV entry checking both local and UTC times
+                closest_entry = None
+                min_diff = float('inf')
+                
+                for entry in csv_entries:
+                    diff_local = abs((entry['local_dt'] - local_time_from_name).total_seconds())
+                    diff_utc = abs((entry['utc_dt'].replace(tzinfo=None) - local_time_from_name).total_seconds())
+                    
+                    best_diff = min(diff_local, diff_utc)
+                    if best_diff < min_diff:
+                        min_diff = best_diff
+                        closest_entry = entry
                 
                 # If it's within a reasonable threshold (e.g. 2 hours) we consider it a match
-                if diff_seconds < 7200:
+                if min_diff < 7200:
                     best_csv_match = closest_entry
-            
+
             if best_csv_match:
                 # Update local file timestamp
                 # os.utime expects timestamp in seconds since epoch.
@@ -131,7 +140,7 @@ def main():
                     print(f"No close CSV match found for {filename} (parsed time: {local_time_from_name})")
                 else:
                     print(f"Could not parse time from filename: {filename}")
-            
+
             # Check drive index
             drive_key = (filename, filesize)
             if drive_key in drive_lookup:
@@ -146,17 +155,17 @@ def main():
 
     print(f"Processed {files_processed} local files.")
     print(f"Updated timestamps for {timestamps_updated} files.")
-    
+
     # 4. Save JSONs
     print(f"Matched in Drive: {len(matched_drive)}")
     print(f"Unmatched in Drive: {len(unmatched_drive)}")
-    
+
     with open(MATCHED_OUTPUT, 'w', encoding='utf-8') as f:
         json.dump(matched_drive, f, indent=2)
-        
+
     with open(UNMATCHED_OUTPUT, 'w', encoding='utf-8') as f:
         json.dump(unmatched_drive, f, indent=2)
-        
+
     print("Done!")
 
 if __name__ == '__main__':

@@ -3,6 +3,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 from src.sync import run_rclone_commands
+from src.logger import log
 
 def get_local_files(directory):
     local_files = {}
@@ -19,10 +20,10 @@ def get_local_files(directory):
     return local_files
 
 def cmd_metadata_fix_drive(remote_name):
-    print("=== Google Drive Metadata Fix ===")
+    log.info("=== Google Drive Metadata Fix ===")
     drive_index_path = 'data/json/drive_index_photo_backUp.json'
     if not os.path.exists(drive_index_path):
-        print(f"Error: {drive_index_path} not found.")
+        log.error(f"Error: {drive_index_path} not found.")
         return
 
     local_backup = get_local_files('data/photos/photos_backUp')
@@ -41,7 +42,7 @@ def cmd_metadata_fix_drive(remote_name):
     touch_commands = []
     mismatch_count = 0
 
-    print("Comparing timestamps with Drive index...")
+    log.info("Comparing timestamps with Drive index...")
     for entry in drive_data:
         path = entry.get('Path') or entry.get('path')
         if not path or entry.get('IsDir'): continue
@@ -61,15 +62,14 @@ def cmd_metadata_fix_drive(remote_name):
                         timestamp_str = local_utc_dt.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]
                         touch_commands.append(f'rclone touch --timestamp "{timestamp_str}" "{remote_name}{path}"')
                 except Exception as e:
-                    print(f"Error comparing dates for {name}: {e}")
+                    log.error(f"Error comparing dates for {name}: {e}")
 
-    print(f"Total mismatched files identified: {mismatch_count}")
+    log.info(f"Total mismatched files identified: {mismatch_count}")
     
     if touch_commands:
         if input("Run fix via rclone touch now? (y/n): ").strip().lower() == 'y':
             run_rclone_commands(touch_commands)
 
 def cmd_metadata_fix_local():
-    print("=== Local Files Metadata Fix ===")
-    print("Migrating logic from fix_local_timestamps.py... (To be fully implemented if needed)")
-
+    log.info("=== Local Files Metadata Fix ===")
+    log.info("Migrating logic from fix_local_timestamps.py... (To be fully implemented if needed)")

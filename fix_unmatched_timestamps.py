@@ -3,14 +3,33 @@ import json
 import re
 from datetime import datetime
 
-UNMATCHED_JSON = 'trashed_v3_unmatched.json'
+UNMATCHED_JSON = 'photos_backUp_unmatched.json'
 
 # Standard datetime from Google Photos names
 RE_DATE_TIME = re.compile(r'((?:19|20)\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})')
 # Screen Recording 2024-12-24 at 12.59.06 AM.mov
 RE_SCREEN_REC = re.compile(r'Screen Recording ((?:19|20)\d{2})-(\d{2})-(\d{2}) at (\d{1,2})\.(\d{2})\.(\d{2})\s*(AM|PM)')
 
+# ChatGPT Image Mar 30, 2025, 01_36_33 AM.png
+RE_CHATGPT = re.compile(r'ChatGPT Image ([A-Z][a-z]{2}) (\d{1,2}), (\d{4}), (\d{2})_(\d{2})_(\d{2}) (AM|PM)')
+
 def parse_fallback_time(filename):
+    # Try ChatGPT Image
+    chatgpt_match = RE_CHATGPT.search(filename)
+    if chatgpt_match:
+        month_str, day, year, hour, minute, second, ampm = chatgpt_match.groups()
+        months = {'Jan':1, 'Feb':2, 'Mar':3, 'Apr':4, 'May':5, 'Jun':6, 'Jul':7, 'Aug':8, 'Sep':9, 'Oct':10, 'Nov':11, 'Dec':12}
+        month = months.get(month_str, 1)
+        hour = int(hour)
+        if ampm == 'PM' and hour != 12:
+            hour += 12
+        if ampm == 'AM' and hour == 12:
+            hour = 0
+        try:
+            return datetime(int(year), month, int(day), hour, int(minute), int(second))
+        except ValueError:
+            pass
+
     # Try Screen Recording
     sr_match = RE_SCREEN_REC.search(filename)
     if sr_match:

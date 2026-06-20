@@ -7,11 +7,11 @@ from pathlib import Path
 
 # Directories and files
 DRIVE_INDEX_PATH = 'drive_index.json'
-CSV_PATH = 'Trash_v2_with_blur_pics_metadata.csv'
-DIRECTORIES = ['Blur_Photos-3-001', 'Trashed Photos-3-001']
+CSV_PATH = 'Trash_v3_metadata (2).csv'
+DIRECTORIES = ['Photos-3-001 (3)', 'Photos-3-001 (4)']
 
-MATCHED_OUTPUT = 'trashed_v2_match.json'
-UNMATCHED_OUTPUT = 'trashed_v2_unmatched.json'
+MATCHED_OUTPUT = 'trashed_v3_match.json'
+UNMATCHED_OUTPUT = 'trashed_v3_unmatched.json'
 
 # Regex patterns
 RE_UNIX_MS = re.compile(r'^(\d{13})')

@@ -3,7 +3,7 @@ import json
 import re
 from datetime import datetime
 
-UNMATCHED_JSON = 'trashed_v2_unmatched.json'
+UNMATCHED_JSON = 'trashed_v3_unmatched.json'
 
 # Standard datetime from Google Photos names
 RE_DATE_TIME = re.compile(r'((?:19|20)\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})')

@@ -5,7 +5,7 @@ import datetime
 import calendar
 
 def main():
-    csv_path = "trash_metadata_completed.csv"
+    csv_path = "data/csv/trash_metadata_completed.csv"
     local_photos_dir = "Photos-3-001"
     drive_index_path = "drive_index.json"
 

@@ -1,7 +1,7 @@
 import csv
 import json
 
-csv_path = "og metadata (1).csv"
+csv_path = "data/csv/og metadata (1).csv"
 drive_index_path = "drive_index.json"
 
 target_files = []

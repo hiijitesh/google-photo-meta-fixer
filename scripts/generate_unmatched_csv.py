@@ -1,8 +1,8 @@
 import csv
 
 def main():
-    original_csv = "og metadata (1).csv"
-    missing_txt = "missing_files_og.txt"
+    original_csv = "data/csv/og metadata (1).csv"
+    missing_txt = "logs/missing_files_og.txt"
     unmatched_csv = "unmatched_metadata.csv"
 
     # Load missing filenames

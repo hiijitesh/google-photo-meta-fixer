@@ -1,5 +1,5 @@
 #!/bin/bash
-# Auto-generated rclone copy script — 21 files, 10 at a time
+# Auto-generated rclone copy script (matched by size) — 4 files, 10 at a time
 
 MAX_JOBS=10
 PIDS=()
@@ -19,11 +19,11 @@ run_jobs() {
       done
       PIDS=("${new_pids[@]}")
     fi
-  done < rclone_commands_trash.txt
+  done < logs/rclone_copy_trash_matched.txt
   wait
 }
 
-echo "Starting copy of 21 files into photos_backUp/Recovered_Trash/ (up to 10 parallel)..."
+echo "Starting server-side copy of 4 files to jiteshece:photos_backUp/Recovered_Trash/ (up to 10 parallel)..."
 echo ""
 run_jobs
 echo ""

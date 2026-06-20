@@ -1,4 +1,0 @@
-rclone copyto --ignore-existing "jiteshece:WINDOWWW/2021/B612/00100sPORTRAIT_00100_BURST20210728134354833_COVER.jpg" "jiteshece:photos_backUp/Recovered_Trash/Photos/2021/00100sPORTRAIT_00100_BURST20210728134354833_COVER.jpg"
-rclone copyto --ignore-existing "jiteshece:WINDOWWW/2021/B612/00100sPORTRAIT_00100_BURST20210914113830404_COVER.jpg" "jiteshece:photos_backUp/Recovered_Trash/Photos/2021/00100sPORTRAIT_00100_BURST20210914113830404_COVER.jpg"
-rclone copyto --ignore-existing "jiteshece:WINDOWWW/2021/B612/00100sPORTRAIT_00100_BURST20210914113840868_COVER.jpg" "jiteshece:photos_backUp/Recovered_Trash/Photos/2021/00100sPORTRAIT_00100_BURST20210914113840868_COVER.jpg"
-rclone copyto --ignore-existing "jiteshece:WINDOWWW/2021/B612/00100sPORTRAIT_00100_BURST20211216155531708_COVER.jpg" "jiteshece:photos_backUp/Recovered_Trash/Photos/2021/00100sPORTRAIT_00100_BURST20211216155531708_COVER.jpg"

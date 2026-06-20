@@ -15,7 +15,7 @@ run_jobs() {
       wait "${PIDS[0]}"
       PIDS=("${PIDS[@]:1}")
     fi
-  done < rclone_commands_og.txt
+  done < logs/rclone_commands_og.txt
   wait
 }
 

@@ -17,7 +17,7 @@ while IFS= read -r cmd; do
   else
     echo "[ERROR] Failed: $fname"
   fi
-done < rclone_copy_to_specific_folder.txt
+done < logs/rclone_copy_to_specific_folder.txt
 
 echo ""
 echo "Done! All files processed."

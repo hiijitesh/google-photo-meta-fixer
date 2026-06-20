@@ -1,4 +1,3 @@
-
 [
   {
     "path": "photos_backUp/2022/Snapchat-308590700.jpg",
@@ -639,5 +638,145 @@
     "path": "photos_backUp/2023/IMG_20230618_224120363.jpg",
     "fileName": "IMG_20230618_224120363.jpg",
     "takenAt": "2023-06-18T17:11:21.222Z"
+  },
+  {
+    "path": "photos_backUp/2023/IMG_20230206_043609.jpg",
+    "fileName": "IMG_20230206_043609.jpg",
+    "takenAt": "2023-02-06T04:36:09.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/WIN_20230118_11_14_17_Pro.jpg",
+    "fileName": "WIN_20230118_11_14_17_Pro.jpg",
+    "takenAt": "2023-01-18T11:14:17.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/WIN_20230119_15_58_56_Pro.jpg",
+    "fileName": "WIN_20230119_15_58_56_Pro.jpg",
+    "takenAt": "2023-01-19T15:58:56.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/WIN_20230216_16_56_28_Pro.jpg",
+    "fileName": "WIN_20230216_16_56_28_Pro.jpg",
+    "takenAt": "2023-02-16T16:56:28.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/WIN_20230216_16_56_29_Pro.jpg",
+    "fileName": "WIN_20230216_16_56_29_Pro.jpg",
+    "takenAt": "2023-02-16T16:56:29.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/WIN_20230216_16_56_29_Pro (2).jpg",
+    "fileName": "WIN_20230216_16_56_29_Pro (2).jpg",
+    "takenAt": "2023-02-16T16:56:29.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/WIN_20230216_16_56_40_Pro (2).jpg",
+    "fileName": "WIN_20230216_16_56_40_Pro (2).jpg",
+    "takenAt": "2023-02-16T16:56:40.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/IMG_20230402_104939784.jpg",
+    "fileName": "IMG_20230402_104939784.jpg",
+    "takenAt": "2023-04-02T10:49:39.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/IMG_20230402_104951352.jpg",
+    "fileName": "IMG_20230402_104951352.jpg",
+    "takenAt": "2023-04-02T10:49:51.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/IMG_20230402_104955481.jpg",
+    "fileName": "IMG_20230402_104955481.jpg",
+    "takenAt": "2023-04-02T10:49:55.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/IMG_20230402_104959432.jpg",
+    "fileName": "IMG_20230402_104959432.jpg",
+    "takenAt": "2023-04-02T10:49:59.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/IMG_20230409_183625132.jpg",
+    "fileName": "IMG_20230409_183625132.jpg",
+    "takenAt": "2023-04-09T18:36:25.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/IMG_20230409_202253180.jpg",
+    "fileName": "IMG_20230409_202253180.jpg",
+    "takenAt": "2023-04-09T20:22:53.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/IMG_20230409_203120343.jpg",
+    "fileName": "IMG_20230409_203120343.jpg",
+    "takenAt": "2023-04-09T20:31:20.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/IMG_20230409_203128654.jpg",
+    "fileName": "IMG_20230409_203128654.jpg",
+    "takenAt": "2023-04-09T20:31:28.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/IMG_20230409_210646482.jpg",
+    "fileName": "IMG_20230409_210646482.jpg",
+    "takenAt": "2023-04-09T21:06:46.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/IMG_20230409_210648867.jpg",
+    "fileName": "IMG_20230409_210648867.jpg",
+    "takenAt": "2023-04-09T21:06:48.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/IMG_20230409_212420764_HDR.jpg",
+    "fileName": "IMG_20230409_212420764_HDR.jpg",
+    "takenAt": "2023-04-09T21:24:20.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/IMG_20230909_160307664_HDR-01-01.jpeg",
+    "fileName": "IMG_20230909_160307664_HDR-01-01.jpeg",
+    "takenAt": "2023-09-09T16:03:07.000Z"
+  },
+  {
+    "path": "photos_backUp/2023/IMG_20231202_175150062-01~2.jpeg",
+    "fileName": "IMG_20231202_175150062-01~2.jpeg",
+    "takenAt": "2023-12-02T17:51:50.000Z"
+  },
+  {
+    "path": "photos_backUp/2025/ChatGPT Image Mar 29, 2025, 09_17_54 AM.png",
+    "fileName": "ChatGPT Image Mar 29, 2025, 09_17_54 AM.png",
+    "takenAt": "2025-03-29T09:17:54.000Z"
+  },
+  {
+    "path": "photos_backUp/2025/ChatGPT Image Mar 30, 2025, 01_32_55 AM.png",
+    "fileName": "ChatGPT Image Mar 30, 2025, 01_32_55 AM.png",
+    "takenAt": "2025-03-30T01:32:55.000Z"
+  },
+  {
+    "path": "photos_backUp/2025/ChatGPT Image Mar 30, 2025, 01_36_33 AM.png",
+    "fileName": "ChatGPT Image Mar 30, 2025, 01_36_33 AM.png",
+    "takenAt": "2025-03-30T01:36:33.000Z"
+  },
+  {
+    "path": "photos_backUp/2025/ChatGPT Image Apr 6, 2025, 09_04_33 PM.png",
+    "fileName": "ChatGPT Image Apr 6, 2025, 09_04_33 PM.png",
+    "takenAt": "2025-04-06T21:04:33.000Z"
+  },
+  {
+    "path": "photos_backUp/2025/ChatGPT Image Apr 6, 2025, 09_04_37 PM.png",
+    "fileName": "ChatGPT Image Apr 6, 2025, 09_04_37 PM.png",
+    "takenAt": "2025-04-06T21:04:37.000Z"
+  },
+  {
+    "path": "photos_backUp/2026/Adhar Card-unlocked Jitendra_page-0001.jpg",
+    "fileName": "Adhar Card-unlocked Jitendra_page-0001.jpg",
+    "takenAt": "2026-06-13T19:11:42.000Z"
+  },
+  {
+    "path": "photos_backUp/2026/e-EPIC_UMA1989078_page-0001.jpg",
+    "fileName": "e-EPIC_UMA1989078_page-0001.jpg",
+    "takenAt": "2026-06-06T17:48:42.000Z"
+  },
+  {
+    "path": "photos_backUp/2026/e-EPIC_UMA2611028(1)_page-0001.jpg",
+    "fileName": "e-EPIC_UMA2611028(1)_page-0001.jpg",
+    "takenAt": "2026-06-06T17:54:30.000Z"
   }
 ]

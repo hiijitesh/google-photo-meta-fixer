@@ -61,7 +61,7 @@ When interacting with Google Drive via `rclone`:
 3. **Use Native Rclone Parallelism for Bulk Transfers:** When uploading/copying specific lists of files, do not spawn multiple background processes. Instead, write the relative file paths to a manifest file and run a single `rclone copy` command using `--files-from <manifest>`, `--transfers 10`, and `--checkers 16` for native multi-threaded execution.
 4. **Use Local JSON Caches (Always Refresh First):** Instead of query-polling the Drive API directly (which leads to rate-limiting), parse the local JSON caches. **CRITICAL:** You must always run `rclone lsjson` to get a fresh, up-to-date index of the remote directory before performing any check or upload task to prevent duplicate uploads or stale data mismatches:
    ```bash
-   rclone lsjson -R "jiteshece:photos_backUp" > data/json/drive_index_photo_backUp.json
+   rclone lsjson -R "gdrive:photos_backUp" > data/json/drive_index_photo_backUp.json
    ```
 
 ---

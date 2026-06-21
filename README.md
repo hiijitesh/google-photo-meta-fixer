@@ -16,10 +16,10 @@ To use this toolkit, you must have `rclone` installed and configured on your sys
    ```bash
    rclone config
    ```
-   Follow the step-by-step prompts to create a new remote (e.g. `jiteshece:`). Refer to the official [rclone config command guide](https://rclone.org/commands/rclone_config/) for more details.
+   Follow the step-by-step prompts to create a new remote (e.g. `gdrive:`). Refer to the official [rclone config command guide](https://rclone.org/commands/rclone_config/) for more details.
 3. **Verify configuration:** Make sure you can list your drive contents:
    ```bash
-   rclone lsd jiteshece:
+   rclone lsd gdrive:
    ```
 
 ---
@@ -32,10 +32,9 @@ The project has been refactored from a collection of single-purpose scripts into
 .
 ├── cleaner.py                 # Main CLI entrypoint (argparse interface)
 ├── src/                       # Core python modules
-│   ├── sync.py                # Cloud-to-cloud file backup/trash copying logic
+│   ├── sync.py                # Cloud-to-cloud file backup copying logic
 │   ├── metadata.py            # Timestamp comparison and Drive fixing via 'rclone touch'
-│   ├── process_backup.py      # Parses CSV & updates local file modification times
-│   └── process_trash.py       # Parses trash CSV & updates local trash mtimes
+│   └── process_backup.py      # Parses CSV & updates local file modification times
 ├── js/
 │   └── extract_photos.js      # Chrome browser toolkit userscript helper
 ├── data/                      # Contains inputs/caches (Ignored by Git except template/configs)
@@ -97,18 +96,15 @@ Handles synchronizing files inside Google Drive (cloud-to-cloud) or uploading mi
 
 ```bash
 # Sync original-quality backup photos into year-wise folders
-gp-cleaner sync backup --remote jiteshece:
-
-# Sync recovered Google Photos trash files into organized subfolders
-gp-cleaner sync trash --remote jiteshece:
+gp-cleaner sync backup --remote gdrive:
 
 # Compare space-consuming CSV metadata against Google Drive index (cloud-to-cloud sync)
 # This finds files present on Drive but not in photos_backUp, and copies them to the backup directory
-gp-cleaner sync consuming --csv "o consuming album metadata.csv" --remote jiteshece:
+gp-cleaner sync consuming --csv "o consuming album metadata.csv" --remote gdrive:
 
 # Compare a local folder (e.g. GPH OP) against Drive index and upload missing files to a destination folder on Drive
 # (Prevents duplicate files and folder structures)
-gp-cleaner sync upload-local --dir "data/GPH OP/ALL_PHOTOS" --dest "O Consuming" --remote jiteshece:
+gp-cleaner sync upload-local --dir "data/GPH OP/ALL_PHOTOS" --dest "O Consuming" --remote gdrive:
 ```
 
 ### 2. Metadata & Timestamps (`metadata`)
@@ -116,7 +112,7 @@ Identifies, verifies, and fixes timestamp discrepancies between local files, Goo
 
 ```bash
 # Compare local and Drive indices, and execute 'rclone touch' directly on Drive to fix mismatched times
-gp-cleaner metadata fix-drive --remote jiteshece:
+gp-cleaner metadata fix-drive --remote gdrive:
 
 # Fix local photo modification timestamps
 gp-cleaner metadata fix-local
@@ -131,9 +127,6 @@ Processes local files against GPTK metadata CSVs to extract correct timestamps a
 ```bash
 # Process and update timestamps for local backup photos
 gp-cleaner process backup
-
-# Process and update timestamps for local trashed photos
-gp-cleaner process trash
 ```
 
 ### 4. Google Takeout Metadata Merger (`process takeout`)
@@ -155,13 +148,13 @@ gp-cleaner metadata verify-takeout
 Because the official Google Photos API strips GPS/EXIF metadata and hides the `takesUpSpace` attribute, this toolkit relies on the **Google Photos Toolkit (GPTK)** userscript (`js/extract_photos.js`).
 1. Run the userscript in Tampermonkey on [photos.google.com](https://photos.google.com).
 2. Filter for "Consuming" space and "Original" quality.
-3. Click "Export Metadata" to get `metadata.csv` (or `trash_metadata_completed.csv` for trashed items).
+3. Click "Export Metadata" to get `metadata.csv`.
 4. Save the files under `data/csv/`.
 
 ### 2. Google Drive Indexing
 We index files on Google Drive using `rclone` to avoid querying the API repeatedly:
 ```bash
-rclone lsjson -R "jiteshece:photos_backUp" > data/json/drive_index_photo_backUp.json
+rclone lsjson -R "gdrive:photos_backUp" > data/json/drive_index_photo_backUp.json
 ```
 
 ### 3. Local Comparison & Cloud Execution

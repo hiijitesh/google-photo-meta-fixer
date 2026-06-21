@@ -10,3 +10,10 @@ photos_backUp
 photos
 
 GPH OP
+
+# Python packaging & PyInstaller artifacts
+build/
+dist/
+*.spec
+*.egg-info/
+.eggs/

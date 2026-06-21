@@ -21,7 +21,7 @@ brew install rclone
    ```
 2. Follow these prompts to set up a new remote:
    *   Select `n` for **New remote**.
-   *   Name the remote (e.g., `jiteshece`).
+   *   Name the remote (e.g., `gdrive`).
    *   Select **Google Drive** (number in the list, e.g., `18`).
    *   Leave `client_id` and `client_secret` blank (to use defaults), or supply your own Google API Console credentials for faster speeds.
    *   Set the scope to `1` (**Full access to all files**).
@@ -31,7 +31,7 @@ brew install rclone
 3. **Verify the connection:**
    Make sure rclone can list your remote root:
    ```bash
-   rclone lsd jiteshece:
+   rclone lsd gdrive:
    ```
 
 ---
@@ -69,7 +69,7 @@ gp-cleaner [command] [options]
 
 ## 📊 3. Google Photos Toolkit (GPTK) CSV Specification
 
-The `sync consuming`, `process backup`, `process trash`, and `metadata verify-csv` commands parse metadata CSV files exported from the browser-level Google Photos Toolkit userscript. 
+The `sync consuming`, `process backup`, and `metadata verify-csv` commands parse metadata CSV files exported from the browser-level Google Photos Toolkit userscript. 
 
 The tool inspects the following columns:
 
@@ -91,7 +91,7 @@ To prevent hitting Google Drive API rate-limiting thresholds, the tool reads loc
 Before executing any sync or cloud-metadata subcommand, the tool prompts you to refresh the cache:
 1.  **Prompt:** `Do you want to refresh the Google Drive index cache (drive_index.json)? (y/n) [y]:`
 2.  If you enter **`y` (or press Enter)**:
-    *   The tool runs `rclone lsjson -R "jiteshece:"` to fetch all file nodes.
+    *   The tool runs `rclone lsjson -R "gdrive:"` to fetch all file nodes.
     *   It overwrites the local cache JSON file.
 3.  If you enter **`n`**:
     *   The tool skips the network scan and immediately reads the existing local cache file (executing in under a second).
@@ -116,18 +116,7 @@ Before executing any sync or cloud-metadata subcommand, the tool prompts you to 
     gp-cleaner sync backup [--remote REMOTE_NAME]
     ```
 
-#### 🔹 `gp-cleaner sync trash`
-*   **Purpose:** Copies recovered Google Photos trash files to organized year-wise subfolders cloud-to-cloud.
-*   **Workflow:**
-    1.  Prompts to refresh `drive_index.json`.
-    2.  Loads `data/csv/trash_metadata_completed.csv`.
-    3.  Distinguishes files into `Photos` and `Videos` folders based on `durationMs` and file extension.
-    4.  Locates files on Drive using the index lookup.
-    5.  Generates and executes parallel commands to copy them to `photos_backUp/Recovered_Trash/[Photos/Videos]/[Year]/[fileName]`.
-*   **Syntax:**
-    ```bash
-    gp-cleaner sync trash [--remote REMOTE_NAME]
-    ```
+
 
 #### 🔹 `gp-cleaner sync consuming`
 *   **Purpose:** Finds original quality photos listed in a CSV that exist on Drive but are missing from the `photos_backUp/` folder, and copies them to the backup folder cloud-to-cloud.
@@ -137,7 +126,7 @@ Before executing any sync or cloud-metadata subcommand, the tool prompts you to 
     ```
 *   **Example:**
     ```bash
-    gp-cleaner sync consuming --csv "data/csv/o consuming album metadata.csv" --remote jiteshece:
+    gp-cleaner sync consuming --csv "data/csv/o consuming album metadata.csv" --remote gdrive:
     ```
 
 #### 🔹 `gp-cleaner sync upload-local`
@@ -197,12 +186,7 @@ Before executing any sync or cloud-metadata subcommand, the tool prompts you to 
     gp-cleaner process backup --csv "data/csv/metadata.csv" --dir "data/photos/photos_backUp"
     ```
 
-#### 🔹 `gp-cleaner process trash`
-*   **Purpose:** Matches local trashed photos with CSV timestamps and corrects local filesystem dates.
-*   **Syntax:**
-    ```bash
-    gp-cleaner process trash [--csv CSV] [--dir [DIR ...]]
-    ```
+
 
 #### 🔹 `gp-cleaner process takeout`
 *   **Purpose:** Matches companion JSON metadata files to photos/videos in a Google Takeout folder and updates EXIF headers and filesystem modification times.

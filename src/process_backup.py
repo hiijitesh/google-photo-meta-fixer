@@ -7,7 +7,7 @@ from pathlib import Path
 
 # Config
 DRIVE_INDEX_PATH = "data/json/drive_index.json"
-CSV_PATHS = ["data/csv/og metadata (1).csv", "data/csv/metadata.csv"]
+CSV_PATHS = ["data/csv/metadata.csv"]
 DIRECTORIES = ["data/photos/photos_backUp"]
 
 MATCHED_OUTPUT = "data/json/photos_backUp_match.json"

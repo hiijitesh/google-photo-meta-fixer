@@ -2,7 +2,6 @@ import argparse
 import sys
 from src.sync import (
     cmd_sync_backup,
-    cmd_sync_trash,
     cmd_sync_consuming,
     cmd_sync_upload_local,
 )
@@ -23,7 +22,6 @@ Available subcommands and their usage:
 
 1. Sync (Manage cloud-to-cloud sync & uploads)
    - gp-cleaner sync backup [--remote REMOTE]
-   - gp-cleaner sync trash [--remote REMOTE]
    - gp-cleaner sync consuming --csv CSV [--remote REMOTE]
    - gp-cleaner sync upload-local --dir DIR --dest DEST [--remote REMOTE]
 
@@ -35,7 +33,6 @@ Available subcommands and their usage:
 
 3. Process (Write metadata & filesystem times)
    - gp-cleaner process backup [--csv [CSV ...]] [--dir [DIR ...]]
-   - gp-cleaner process trash [--csv CSV] [--dir [DIR ...]]
    - gp-cleaner process takeout --dir DIR
 
 Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' for details on specific options.
@@ -48,14 +45,7 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
     sync_sub = sync_parser.add_subparsers(dest="subcommand", required=True)
 
     backup_parser = sync_sub.add_parser("backup", help="Sync backup photos")
-    backup_parser.add_argument(
-        "--remote", default="jiteshece:", help="Rclone remote name"
-    )
-
-    trash_parser = sync_sub.add_parser("trash", help="Sync trashed photos")
-    trash_parser.add_argument(
-        "--remote", default="jiteshece:", help="Rclone remote name"
-    )
+    backup_parser.add_argument("--remote", default="gdrive:", help="Rclone remote name")
 
     consuming_parser = sync_sub.add_parser(
         "consuming", help="Sync space-consuming photos from CSV metadata"
@@ -64,7 +54,7 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
         "--csv", required=True, help="Path to GPTK consuming metadata CSV file"
     )
     consuming_parser.add_argument(
-        "--remote", default="jiteshece:", help="Rclone remote name"
+        "--remote", default="gdrive:", help="Rclone remote name"
     )
 
     upload_local_parser = sync_sub.add_parser(
@@ -74,7 +64,7 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
         "--dir", required=True, help="Local directory containing files"
     )
     upload_local_parser.add_argument(
-        "--remote", default="jiteshece:", help="Rclone remote name"
+        "--remote", default="gdrive:", help="Rclone remote name"
     )
     upload_local_parser.add_argument(
         "--dest",
@@ -90,7 +80,7 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
         "fix-drive", help="Fix mismatched timestamps on Drive"
     )
     fix_drive_parser.add_argument(
-        "--remote", default="jiteshece:", help="Rclone remote name"
+        "--remote", default="gdrive:", help="Rclone remote name"
     )
 
     meta_sub.add_parser("fix-local", help="Fix local timestamps")
@@ -122,12 +112,6 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
         "--dir", nargs="*", help="Optional custom directory path(s)"
     )
 
-    trash_parser = process_sub.add_parser("trash", help="Process trashed photos")
-    trash_parser.add_argument("--csv", help="Optional custom CSV path")
-    trash_parser.add_argument(
-        "--dir", nargs="*", help="Optional custom directory path(s)"
-    )
-
     takeout_parser = process_sub.add_parser(
         "takeout", help="Process Google Takeout directories merging JSON metadata"
     )
@@ -140,8 +124,6 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
     if args.command == "sync":
         if args.subcommand == "backup":
             cmd_sync_backup(args.remote)
-        elif args.subcommand == "trash":
-            cmd_sync_trash(args.remote)
         elif args.subcommand == "consuming":
             cmd_sync_consuming(args.csv, args.remote)
         elif args.subcommand == "upload-local":
@@ -162,10 +144,6 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
             import src.process_backup as bp
 
             bp.main(csv_paths=args.csv, directories=args.dir)
-        elif args.subcommand == "trash":
-            import src.process_trash as tp
-
-            tp.main(csv_path=args.csv, directories=args.dir)
         elif args.subcommand == "takeout":
             import src.process_takeout as pt
 

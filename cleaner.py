@@ -1,7 +1,7 @@
 import argparse
 import sys
 from src.sync import cmd_sync_backup, cmd_sync_trash, cmd_sync_consuming, cmd_sync_upload_local
-from src.metadata import cmd_metadata_fix_drive, cmd_metadata_fix_local, cmd_metadata_verify_csv
+from src.metadata import cmd_metadata_fix_drive, cmd_metadata_fix_local, cmd_metadata_verify_csv, cmd_metadata_verify_takeout
 
 def main():
     parser = argparse.ArgumentParser(description="Google Photos Cleaner CLI")
@@ -38,6 +38,8 @@ def main():
     verify_csv_parser = meta_sub.add_parser("verify-csv", help="Verify local photo timestamps against a CSV metadata file")
     verify_csv_parser.add_argument("--csv", required=True, help="Path to CSV metadata file")
     verify_csv_parser.add_argument("--dir", required=True, help="Directory containing photos")
+    
+    meta_sub.add_parser("verify-takeout", help="Verify local photo timestamps and EXIF tags against Google Takeout match log index")
 
     # Process commands (Placeholder for now)
     process_parser = subparsers.add_parser("process", help="Process local photos based on CSV metadata")
@@ -66,6 +68,8 @@ def main():
             cmd_metadata_fix_local()
         elif args.subcommand == "verify-csv":
             cmd_metadata_verify_csv(args.csv, args.dir)
+        elif args.subcommand == "verify-takeout":
+            cmd_metadata_verify_takeout()
 
     elif args.command == "process":
         if args.subcommand == "backup":

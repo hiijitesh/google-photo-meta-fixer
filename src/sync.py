@@ -191,14 +191,18 @@ def cmd_sync_consuming(csv_path, remote_name):
         if in_backup:
             already_backed_up.append(filename)
         else:
-            other_places.append((filename, exact_entry))
-            # Destination path: directly inside photos_backUp (don't create subfolders)
-            drive_filename = exact_entry.get("Name") or exact_entry.get("name")
-            source_path = exact_entry["Path"]
-            target_path = f"photos_backUp/{drive_filename}"
-            commands.append(
-                f'rclone copyto --ignore-existing "{remote_name}{source_path}" "{remote_name}{target_path}"'
-            )
+            if exact_entry is not None:
+                other_places.append((filename, exact_entry))
+                # Destination path: directly inside photos_backUp (don't create subfolders)
+                drive_filename = exact_entry.get("Name") or exact_entry.get("name")
+                source_path = exact_entry.get("Path") or exact_entry.get("path")
+                if drive_filename and source_path:
+                    target_path = f"photos_backUp/{drive_filename}"
+                    commands.append(
+                        f'rclone copyto --ignore-existing "{remote_name}{source_path}" "{remote_name}{target_path}"'
+                    )
+            else:
+                missing_files.append(filename)
 
     log.info("Summary:")
     log.info(f"  Total unique files in CSV: {len(target_files)}")

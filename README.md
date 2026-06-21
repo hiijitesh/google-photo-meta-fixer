@@ -29,9 +29,51 @@ The project has been refactored from a collection of single-purpose scripts into
 
 ---
 
-## 🔧 CLI Entry Point (`cleaner.py`)
+## 📦 Installation & Packaging
 
-All operations are run via `cleaner.py` using positional commands:
+You can run the tool directly as a script, install it locally as a system-wide CLI command, or compile it into a single standalone executable binary.
+
+### 1. Run Directly as a Script
+Run directly from the repository root:
+```bash
+python3 cleaner.py [command] [options]
+```
+
+### 2. Install as a Local CLI Command
+You can install the tool as a system-wide CLI package (mapped to the command `gp-cleaner`):
+```bash
+# Install in editable mode
+pip install -e .
+
+# If using an externally managed environment (e.g. Homebrew on macOS)
+pip install -e . --break-system-packages --user
+```
+Once installed, you can invoke the tool from any directory:
+```bash
+gp-cleaner [command] [options]
+```
+
+### 3. Build a Standalone macOS Executable Binary
+To package the app into a single compiled binary that doesn't depend on system Python path settings:
+
+1. Install PyInstaller:
+   ```bash
+   pip install pyinstaller --break-system-packages --user
+   ```
+2. Compile the binary:
+   ```bash
+   pyinstaller --onefile cleaner.py --name gp-cleaner
+   ```
+3. Run the standalone binary from the `dist/` directory:
+   ```bash
+   ./dist/gp-cleaner [command] [options]
+   ```
+
+---
+
+## 🔧 CLI Entry Point
+
+All operations are run via `cleaner.py` (or `gp-cleaner` if installed) using positional commands:
 
 ### 1. File Synchronization (`sync`)
 Handles synchronizing files inside Google Drive (cloud-to-cloud) or uploading missing local folders.

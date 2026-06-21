@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "google-photos-cleaner"
+version = "1.0.0"
+description = "CLI tool to sync and clean Google Photos backups on Google Drive"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: MacOS",
+]
+dependencies = []
+
+[project.scripts]
+gp-cleaner = "cleaner:main"
+
+[tool.setuptools]
+py-modules = ["cleaner"]
+packages = ["src"]

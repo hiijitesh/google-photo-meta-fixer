@@ -24,6 +24,16 @@ To use this toolkit, you must have `rclone` installed and configured on your sys
 
 ---
 
+## 🚀 High-Level Customer Workflow
+
+To back up and clean up your Google Photos metadata, follow this standard sequence:
+
+1. **Provide CSV Metadata:** Export your space-consuming photo/video metadata from your browser using the Google Photos Toolkit (GPTK) userscript as a CSV file.
+2. **Provide unzipped Google Takeout Folder:** Download your Google Takeout archive and extract it locally to a folder.
+3. **Configure Google Drive Remote & Target Folder:** Set up your `rclone` remote connection (e.g., `gdrive:`) and specify the target remote folder where the cloud-to-cloud copy and touch operations will execute.
+
+---
+
 ## 🏗️ Project Architecture & Code Structure
 
 The project has been refactored from a collection of single-purpose scripts into a consolidated Python application with a unified CLI entry point.

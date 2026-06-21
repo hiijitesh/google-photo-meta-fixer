@@ -80,18 +80,18 @@ Handles synchronizing files inside Google Drive (cloud-to-cloud) or uploading mi
 
 ```bash
 # Sync original-quality backup photos into year-wise folders
-python3 cleaner.py sync backup --remote jiteshece:
+gp-cleaner sync backup --remote jiteshece:
 
 # Sync recovered Google Photos trash files into organized subfolders
-python3 cleaner.py sync trash --remote jiteshece:
+gp-cleaner sync trash --remote jiteshece:
 
 # Compare space-consuming CSV metadata against Google Drive index (cloud-to-cloud sync)
 # This finds files present on Drive but not in photos_backUp, and copies them to the backup directory
-python3 cleaner.py sync consuming --csv "o consuming album metadata.csv" --remote jiteshece:
+gp-cleaner sync consuming --csv "o consuming album metadata.csv" --remote jiteshece:
 
 # Compare a local folder (e.g. GPH OP) against Drive index and upload missing files to a destination folder on Drive
 # (Prevents duplicate files and folder structures)
-python3 cleaner.py sync upload-local --dir "data/GPH OP/ALL_PHOTOS" --dest "O Consuming" --remote jiteshece:
+gp-cleaner sync upload-local --dir "data/GPH OP/ALL_PHOTOS" --dest "O Consuming" --remote jiteshece:
 ```
 
 ### 2. Metadata & Timestamps (`metadata`)
@@ -99,13 +99,13 @@ Identifies, verifies, and fixes timestamp discrepancies between local files, Goo
 
 ```bash
 # Compare local and Drive indices, and execute 'rclone touch' directly on Drive to fix mismatched times
-python3 cleaner.py metadata fix-drive --remote jiteshece:
+gp-cleaner metadata fix-drive --remote jiteshece:
 
 # Fix local photo modification timestamps
-python3 cleaner.py metadata fix-local
+gp-cleaner metadata fix-local
 
 # Verify that local photo timestamps (EXIF & modify date) match dates in a Google Photos CSV file
-python3 cleaner.py metadata verify-csv --csv "o consuming album metadata.csv" --dir "data/GPH OP/ALL_PHOTOS"
+gp-cleaner metadata verify-csv --csv "o consuming album metadata.csv" --dir "data/GPH OP/ALL_PHOTOS"
 ```
 
 ### 3. CSV Processing & Local Organizing (`process`)
@@ -113,10 +113,10 @@ Processes local files against GPTK metadata CSVs to extract correct timestamps a
 
 ```bash
 # Process and update timestamps for local backup photos
-python3 cleaner.py process backup
+gp-cleaner process backup
 
 # Process and update timestamps for local trashed photos
-python3 cleaner.py process trash
+gp-cleaner process trash
 ```
 
 ### 4. Google Takeout Metadata Merger (`process takeout`)
@@ -124,10 +124,10 @@ Recursively walks a Google Takeout directory to find companion JSON files, extra
 
 ```bash
 # Process and merge Google Takeout directory metadata
-python3 cleaner.py process takeout --dir <takeout_dir>
+gp-cleaner process takeout --dir <takeout_dir>
 
 # Verify Google Takeout metadata updates
-python3 cleaner.py metadata verify-takeout
+gp-cleaner metadata verify-takeout
 ```
 
 ---

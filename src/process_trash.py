@@ -41,7 +41,7 @@ def parse_filename_time(filename):
     return None
 
 
-def main():
+def main(csv_path=None, directories=None):
     # 1. Load drive_index.json
     print(f"Loading {DRIVE_INDEX_PATH}...")
     drive_lookup = {}
@@ -54,9 +54,10 @@ def main():
     print(f"Loaded {len(drive_lookup)} files from drive index.")
 
     # 2. Load CSV and build a list of (utc_dt, local_dt, raw_row)
-    print(f"Loading {CSV_PATH}...")
+    actual_csv_path = csv_path if csv_path is not None else CSV_PATH
+    print(f"Loading {actual_csv_path}...")
     csv_entries = []
-    with open(CSV_PATH, "r", encoding="utf-8") as f:
+    with open(actual_csv_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             taken_at_str = row.get("takenAt", "")
@@ -91,7 +92,8 @@ def main():
     files_processed = 0
     timestamps_updated = 0
 
-    for dir_name in DIRECTORIES:
+    actual_directories = directories if directories is not None else DIRECTORIES
+    for dir_name in actual_directories:
         dir_path = Path(dir_name)
         if not dir_path.exists() or not dir_path.is_dir():
             print(f"Directory {dir_name} not found, skipping...")

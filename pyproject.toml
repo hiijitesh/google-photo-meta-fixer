@@ -20,3 +20,10 @@ gp-cleaner = "cleaner:main"
 [tool.setuptools]
 py-modules = ["cleaner"]
 packages = ["src"]
+
+[tool.pyright]
+extraPaths = ["."]
+
+[tool.ruff]
+src = ["."]
+

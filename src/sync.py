@@ -6,6 +6,45 @@ from pathlib import Path
 from src.logger import log
 
 
+def prompt_and_refresh_index(remote_name, backup_only=False):
+    if not remote_name.endswith(":"):
+        remote_name += ":"
+
+    target_path = "drive_index_photo_backUp.json" if backup_only else "drive_index.json"
+    cache_path = f"data/json/{target_path}"
+
+    prompt_msg = f"Do you want to refresh the Google Drive index cache ({target_path})? (y/n) [y]: "
+    user_input = input(prompt_msg).strip().lower()
+
+    if user_input in ["", "y", "yes"]:
+        os.makedirs("data/json", exist_ok=True)
+        log.info(f"Refreshing index cache from Google Drive remote '{remote_name}'...")
+
+        source = f"{remote_name}photos_backUp" if backup_only else remote_name
+        cmd = ["rclone", "lsjson", "-R", source]
+
+        try:
+            res = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=True,
+            )
+            with open(cache_path, "w", encoding="utf-8") as f:
+                f.write(res.stdout)
+            log.info("Index cache refreshed successfully.")
+        except subprocess.CalledProcessError as e:
+            log.error(f"Error running rclone lsjson: {e.stderr}")
+            if not os.path.exists(cache_path):
+                log.error("No cached index file exists. Cannot proceed.")
+                raise e
+            else:
+                log.warning("Failed to refresh. Proceeding with existing cache.")
+    else:
+        log.info("Skipping index cache refresh. Using existing local cache.")
+
+
 def run_rclone_commands(commands, max_jobs=10):
     log.info(f"Executing {len(commands)} rclone commands ({max_jobs} parallel)...")
     # Write to a temporary file
@@ -34,6 +73,7 @@ def run_rclone_commands(commands, max_jobs=10):
 
 def cmd_sync_backup(remote_name):
     log.info("=== Google Photos -> Google Drive Backup Matcher ===")
+    prompt_and_refresh_index(remote_name, backup_only=False)
     csv_path = "data/csv/metadata.csv"
     if not os.path.exists(csv_path):
         log.error(f"Error: {csv_path} not found.")
@@ -94,6 +134,7 @@ def cmd_sync_backup(remote_name):
 
 def cmd_sync_trash(remote_name):
     log.info("=== Google Photos -> Trash Sync ===")
+    prompt_and_refresh_index(remote_name, backup_only=False)
     csv_path = "data/csv/trash_metadata_completed.csv"
     if not os.path.exists(csv_path):
         log.error(f"Error: {csv_path} not found.")
@@ -159,6 +200,7 @@ def cmd_sync_trash(remote_name):
 
 def cmd_sync_consuming(csv_path, remote_name):
     log.info("=== Google Drive Consuming Album Sync ===")
+    prompt_and_refresh_index(remote_name, backup_only=False)
     if not os.path.exists(csv_path):
         log.error(f"Error: CSV file {csv_path} not found.")
         return
@@ -244,6 +286,7 @@ def cmd_sync_consuming(csv_path, remote_name):
 
 def cmd_sync_upload_local(local_dir, remote_name, dest_subfolder):
     log.info("=== Google Drive Local Upload Sync ===")
+    prompt_and_refresh_index(remote_name, backup_only=True)
     if not os.path.isdir(local_dir):
         log.error(f"Error: Local directory {local_dir} not found.")
         return

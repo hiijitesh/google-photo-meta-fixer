@@ -44,6 +44,8 @@ def main():
     process_sub = process_parser.add_subparsers(dest="subcommand", required=True)
     process_sub.add_parser("backup", help="Process backup photos")
     process_sub.add_parser("trash", help="Process trashed photos")
+    takeout_parser = process_sub.add_parser("takeout", help="Process Google Takeout directories merging JSON metadata")
+    takeout_parser.add_argument("--dir", required=True, help="Path to Google Takeout directory")
 
     args = parser.parse_args()
 
@@ -72,6 +74,9 @@ def main():
         elif args.subcommand == "trash":
             import src.process_trash as tp
             tp.main()
+        elif args.subcommand == "takeout":
+            import src.process_takeout as pt
+            pt.main(args.dir)
 
 if __name__ == "__main__":
     main()

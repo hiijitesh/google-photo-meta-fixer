@@ -4,7 +4,16 @@ This guide provides deep technical documentation, usage examples, workflow descr
 
 ---
 
-## ⚙️ 1. Prerequisites & Rclone Configuration
+## 🚀 1. High-Level Customer Workflow
+To back up and clean up your Google Photos metadata, follow this standard sequence:
+
+1. **Provide CSV Metadata:** Export your space-consuming photo/video metadata from your browser using the Google Photos Toolkit (GPTK) userscript as a CSV file (e.g. `metadata.csv`).
+2. **Provide unzipped Google Takeout Folder:** Download your Google Takeout archive and extract it locally to a folder.
+3. **Configure Google Drive Remote & Target Folder:** Set up your `rclone` remote connection (e.g., `gdrive:`) and specify the target remote folder (e.g., `photos_backUp`) where the cloud-to-cloud copy and touch operations will execute.
+
+---
+
+## ⚙️ 2. Prerequisites & Rclone Configuration
 
 Because this tool performs cloud-to-cloud operations and metadata touching directly on Google Drive, you must configure `rclone` before running the commands.
 
@@ -36,7 +45,7 @@ brew install rclone
 
 ---
 
-## 📦 2. Installation & Executable Options
+## 📦 3. Installation & Executable Options
 
 ### Method A: Standalone macOS Compiled Binary (Recommended)
 You can compile a single-file executable binary that doesn't depend on system Python installations:
@@ -67,7 +76,7 @@ gp-cleaner [command] [options]
 
 ---
 
-## 📊 3. Google Photos Toolkit (GPTK) CSV Specification
+## 📊 4. Google Photos Toolkit (GPTK) CSV Specification
 
 The `sync consuming`, `process backup`, and `metadata verify-csv` commands parse metadata CSV files exported from the browser-level Google Photos Toolkit userscript. 
 
@@ -84,7 +93,7 @@ The tool inspects the following columns:
 
 ---
 
-## ⚡ 4. Automatic Cache Refreshing Flow
+## ⚡ 5. Automatic Cache Refreshing Flow
 
 To prevent hitting Google Drive API rate-limiting thresholds, the tool reads local index files (`data/json/drive_index.json` and `data/json/drive_index_photo_backUp.json`).
 
@@ -98,9 +107,9 @@ Before executing any sync or cloud-metadata subcommand, the tool prompts you to 
 
 ---
 
-## 🛠️ 5. Subcommand Reference & Workflows
+## 🛠️ 6. Subcommand Reference & Workflows
 
-### 📂 5.1 The `sync` Commands
+### 📂 6.1 The `sync` Commands
 
 #### 🔹 `gp-cleaner sync backup`
 *   **Purpose:** Copies original quality photos from the general Drive index into organized year-wise folders cloud-to-cloud.
@@ -148,7 +157,7 @@ Before executing any sync or cloud-metadata subcommand, the tool prompts you to 
 
 ---
 
-### 🔍 5.2 The `metadata` Commands
+### 🔍 6.2 The `metadata` Commands
 
 #### 🔹 `gp-cleaner metadata fix-drive`
 *   **Purpose:** Directly corrects mismatched remote file modification dates on Google Drive to align with local files using `rclone touch`. No payload is re-uploaded.
@@ -173,7 +182,7 @@ Before executing any sync or cloud-metadata subcommand, the tool prompts you to 
 
 ---
 
-### ⚙️ 5.3 The `process` Commands
+### ⚙️ 6.3 The `process` Commands
 
 #### 🔹 `gp-cleaner process backup`
 *   **Purpose:** Matches local photos inside `photos_backUp/` with CSV timestamps and corrects local filesystem dates (`mtime`).
@@ -197,7 +206,7 @@ Before executing any sync or cloud-metadata subcommand, the tool prompts you to 
 
 ---
 
-## 🧠 6. Advanced Mechanics & Algorithms
+## 🧠 7. Advanced Mechanics & Algorithms
 
 ### A. Fuzzy Filename Matching (Google Takeout)
 Google Takeout companion JSON files often suffix filenames or truncate characters (e.g. `my_extremely_long_photo_name.jpg` matching `my_extremely_long_photo_n.jpg.json`).
@@ -214,7 +223,7 @@ Instead of calling `subprocess.run` sequentially hundreds of times (which adds s
 
 ---
 
-## 🛠️ 7. Troubleshooting
+## 🛠️ 8. Troubleshooting
 
 ### Linter Warning: `Cannot find module src.sync`
 *   **Symptoms:** IDE language servers (like Pyright or Pylance) display import errors under lines like `from src.sync import ...`.

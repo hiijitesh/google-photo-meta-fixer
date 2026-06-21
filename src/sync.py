@@ -5,6 +5,7 @@ import csv
 from pathlib import Path
 from src.logger import log
 
+
 def run_rclone_commands(commands, max_jobs=10):
     log.info(f"Executing {len(commands)} rclone commands ({max_jobs} parallel)...")
     # Write to a temporary file
@@ -14,19 +15,22 @@ def run_rclone_commands(commands, max_jobs=10):
         f.write(f"MAX_JOBS={max_jobs}\n")
         f.write("PIDS=()\n")
         for cmd in commands:
-            f.write(f'({cmd}) &\n')
+            f.write(f"({cmd}) &\n")
             f.write('PIDS+=("$!")\n')
-            f.write('if (( ${#PIDS[@]} >= MAX_JOBS )); then\n')
+            f.write("if (( ${#PIDS[@]} >= MAX_JOBS )); then\n")
             f.write('  wait "${PIDS[0]}"\n')
             f.write('  PIDS=("${PIDS[@]:1}")\n')
-            f.write('fi\n')
+            f.write("fi\n")
         f.write("wait\n")
 
     os.chmod(script_path, 0o755)
     log_file_path = "logs/rclone_execution.log"
     with open(log_file_path, "a", encoding="utf-8") as log_file:
-        subprocess.run(["bash", script_path], stdout=log_file, stderr=log_file, check=True)
+        subprocess.run(
+            ["bash", script_path], stdout=log_file, stderr=log_file, check=True
+        )
     log.info("Execution complete. (Logs saved to logs/rclone_execution.log)")
+
 
 def cmd_sync_backup(remote_name):
     log.info("=== Google Photos -> Google Drive Backup Matcher ===")
@@ -38,11 +42,14 @@ def cmd_sync_backup(remote_name):
     target_files = []
     with open(csv_path, "r", encoding="utf-8") as f:
         for row in csv.DictReader(f):
-            if row.get("takesUpSpace", "").lower() != "true": continue
-            if row.get("isOriginalQuality", "").lower() != "true": continue
+            if row.get("takesUpSpace", "").lower() != "true":
+                continue
+            if row.get("isOriginalQuality", "").lower() != "true":
+                continue
 
             filename = row.get("fileName", "").strip()
-            if not filename: continue
+            if not filename:
+                continue
 
             taken_at = row.get("takenAt", "").strip()
             year = taken_at[:4] if len(taken_at) >= 4 else "Unknown_Year"
@@ -75,12 +82,15 @@ def cmd_sync_backup(remote_name):
             continue
         source_path = drive_lookup[filename][0]["Path"]
         target_path = f"photos_backUp/{entry['year']}/{filename}"
-        commands.append(f'rclone copyto --ignore-existing "{remote_name}{source_path}" "{remote_name}{target_path}"')
+        commands.append(
+            f'rclone copyto --ignore-existing "{remote_name}{source_path}" "{remote_name}{target_path}"'
+        )
 
     log.info(f"Matched: {len(commands)}, Missing: {len(missing_files)}")
     if commands:
-        if input("Run backup now? (y/n): ").strip().lower() == 'y':
+        if input("Run backup now? (y/n): ").strip().lower() == "y":
             run_rclone_commands(commands)
+
 
 def cmd_sync_trash(remote_name):
     log.info("=== Google Photos -> Trash Sync ===")
@@ -93,16 +103,21 @@ def cmd_sync_trash(remote_name):
     with open(csv_path, "r", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             filename = row.get("fileName", "").strip()
-            if not filename: continue
+            if not filename:
+                continue
 
             taken_at = row.get("takenAt", "").strip()
             year = taken_at[:4] if len(taken_at) >= 4 else "Unknown_Year"
 
             duration_ms = row.get("durationMs", "").strip()
-            ext = filename.lower().split('.')[-1]
-            media_type = "Videos" if duration_ms or ext in ['mp4', 'mov', 'avi'] else "Photos"
+            ext = filename.lower().split(".")[-1]
+            media_type = (
+                "Videos" if duration_ms or ext in ["mp4", "mov", "avi"] else "Photos"
+            )
 
-            target_files.append({"name": filename, "year": year, "media_type": media_type})
+            target_files.append(
+                {"name": filename, "year": year, "media_type": media_type}
+            )
 
     drive_index_path = "data/json/drive_index.json"
     if not os.path.exists(drive_index_path):
@@ -129,13 +144,18 @@ def cmd_sync_trash(remote_name):
             continue
 
         source_path = drive_lookup[filename][0]["Path"]
-        target_path = f"{base_backup_folder}/{entry['media_type']}/{entry['year']}/{filename}"
-        commands.append(f'rclone copyto --ignore-existing "{remote_name}{source_path}" "{remote_name}{target_path}"')
+        target_path = (
+            f"{base_backup_folder}/{entry['media_type']}/{entry['year']}/{filename}"
+        )
+        commands.append(
+            f'rclone copyto --ignore-existing "{remote_name}{source_path}" "{remote_name}{target_path}"'
+        )
 
     log.info(f"Matched: {len(commands)}, Missing: {len(missing_files)}")
     if commands:
-        if input("Run sync now? (y/n): ").strip().lower() == 'y':
+        if input("Run sync now? (y/n): ").strip().lower() == "y":
             run_rclone_commands(commands)
+
 
 def cmd_sync_consuming(csv_path, remote_name):
     log.info("=== Google Drive Consuming Album Sync ===")
@@ -200,7 +220,9 @@ def cmd_sync_consuming(csv_path, remote_name):
             drive_filename = exact_entry.get("Name") or exact_entry.get("name")
             source_path = exact_entry["Path"]
             target_path = f"photos_backUp/{drive_filename}"
-            commands.append(f'rclone copyto --ignore-existing "{remote_name}{source_path}" "{remote_name}{target_path}"')
+            commands.append(
+                f'rclone copyto --ignore-existing "{remote_name}{source_path}" "{remote_name}{target_path}"'
+            )
 
     log.info("Summary:")
     log.info(f"  Total unique files in CSV: {len(target_files)}")
@@ -214,10 +236,11 @@ def cmd_sync_consuming(csv_path, remote_name):
             log.info(f"  - {name} (currently at: {entry['Path']})")
 
     if commands:
-        if input("Run copy commands now? (y/n): ").strip().lower() == 'y':
+        if input("Run copy commands now? (y/n): ").strip().lower() == "y":
             run_rclone_commands(commands)
     else:
         log.info("No files need to be copied.")
+
 
 def cmd_sync_upload_local(local_dir, remote_name, dest_subfolder):
     log.info("=== Google Drive Local Upload Sync ===")
@@ -235,44 +258,44 @@ def cmd_sync_upload_local(local_dir, remote_name, dest_subfolder):
     local_path_obj = Path(local_dir)
     for root, dirs, files in os.walk(local_dir):
         for file in files:
-            if file == '.DS_Store':
+            if file == ".DS_Store":
                 continue
             full_path = os.path.join(root, file)
             # Compute relative path from local_dir
             rel_path = str(Path(full_path).relative_to(local_path_obj))
             local_files[file.lower()] = {
-                'name': file,
-                'rel_path': rel_path,
-                'full_path': full_path
+                "name": file,
+                "rel_path": rel_path,
+                "full_path": full_path,
             }
-            
+
     log.info(f"Found {len(local_files)} local files to check.")
-    
+
     # 2. Load drive index
-    with open(drive_index_path, 'r', encoding='utf-8') as f:
+    with open(drive_index_path, "r", encoding="utf-8") as f:
         drive_data = json.load(f)
-        
+
     drive_files = set()
     for item in drive_data:
         if not item.get("IsDir", False):
             name = item.get("Name") or item.get("name")
             if name:
                 drive_files.add(name.lower())
-                
+
     log.info(f"Found {len(drive_files)} files in Google Drive photos_backUp index.")
-    
+
     # 3. Filter missing files
     missing_rel_paths = []
     for filename_lower, info in local_files.items():
         if filename_lower not in drive_files:
-            missing_rel_paths.append(info['rel_path'])
-            
+            missing_rel_paths.append(info["rel_path"])
+
     log.info(f"Missing files from Google Drive: {len(missing_rel_paths)}")
     if missing_rel_paths:
         log.info("First 10 missing files:")
         for rel_path in missing_rel_paths[:10]:
             log.info(f"  - {rel_path}")
-            
+
     if missing_rel_paths:
         # Write files manifest
         manifest_path = "logs/upload_manifest.txt"
@@ -280,27 +303,34 @@ def cmd_sync_upload_local(local_dir, remote_name, dest_subfolder):
         with open(manifest_path, "w", encoding="utf-8") as f:
             for rel_path in sorted(missing_rel_paths):
                 f.write(f"{rel_path}\n")
-        
+
         # Build destination and single optimized rclone command
         if not remote_name.endswith(":"):
             remote_name += ":"
         target_dir = f"{remote_name}photos_backUp/{dest_subfolder}"
-        
+
         # We use --transfers 10 for parallel thread uploads and --drive-chunk-size 64M for Google Drive performance
         rclone_cmd = [
-            "rclone", "copy",
-            "--files-from", manifest_path,
-            "--transfers", "10",
-            "--checkers", "16",
-            "--drive-chunk-size", "64M",
+            "rclone",
+            "copy",
+            "--files-from",
+            manifest_path,
+            "--transfers",
+            "10",
+            "--checkers",
+            "16",
+            "--drive-chunk-size",
+            "64M",
             local_dir,
-            target_dir
+            target_dir,
         ]
-        
-        log.info(f"Prepared manifest with {len(missing_rel_paths)} entries at {manifest_path}")
+
+        log.info(
+            f"Prepared manifest with {len(missing_rel_paths)} entries at {manifest_path}"
+        )
         log.info(f"Running rclone copy with 10 transfer threads...")
-        
-        if input("Run multi-threaded upload now? (y/n): ").strip().lower() == 'y':
+
+        if input("Run multi-threaded upload now? (y/n): ").strip().lower() == "y":
             log_file_path = "logs/rclone_execution.log"
             with open(log_file_path, "a", encoding="utf-8") as log_file:
                 # Run rclone directly in a single process
@@ -308,5 +338,3 @@ def cmd_sync_upload_local(local_dir, remote_name, dest_subfolder):
             log.info("Upload complete! (Logs saved to logs/rclone_execution.log)")
     else:
         log.info("All files are already present on Google Drive.")
-
-

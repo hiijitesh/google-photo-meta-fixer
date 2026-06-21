@@ -1,7 +1,18 @@
 import argparse
 import sys
-from src.sync import cmd_sync_backup, cmd_sync_trash, cmd_sync_consuming, cmd_sync_upload_local
-from src.metadata import cmd_metadata_fix_drive, cmd_metadata_fix_local, cmd_metadata_verify_csv, cmd_metadata_verify_takeout
+from src.sync import (
+    cmd_sync_backup,
+    cmd_sync_trash,
+    cmd_sync_consuming,
+    cmd_sync_upload_local,
+)
+from src.metadata import (
+    cmd_metadata_fix_drive,
+    cmd_metadata_fix_local,
+    cmd_metadata_verify_csv,
+    cmd_metadata_verify_takeout,
+)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Google Photos Cleaner CLI")
@@ -12,42 +23,81 @@ def main():
     sync_sub = sync_parser.add_subparsers(dest="subcommand", required=True)
 
     backup_parser = sync_sub.add_parser("backup", help="Sync backup photos")
-    backup_parser.add_argument("--remote", default="jiteshece:", help="Rclone remote name")
+    backup_parser.add_argument(
+        "--remote", default="jiteshece:", help="Rclone remote name"
+    )
 
     trash_parser = sync_sub.add_parser("trash", help="Sync trashed photos")
-    trash_parser.add_argument("--remote", default="jiteshece:", help="Rclone remote name")
+    trash_parser.add_argument(
+        "--remote", default="jiteshece:", help="Rclone remote name"
+    )
 
-    consuming_parser = sync_sub.add_parser("consuming", help="Sync space-consuming photos from CSV metadata")
-    consuming_parser.add_argument("--csv", required=True, help="Path to GPTK consuming metadata CSV file")
-    consuming_parser.add_argument("--remote", default="jiteshece:", help="Rclone remote name")
+    consuming_parser = sync_sub.add_parser(
+        "consuming", help="Sync space-consuming photos from CSV metadata"
+    )
+    consuming_parser.add_argument(
+        "--csv", required=True, help="Path to GPTK consuming metadata CSV file"
+    )
+    consuming_parser.add_argument(
+        "--remote", default="jiteshece:", help="Rclone remote name"
+    )
 
-    upload_local_parser = sync_sub.add_parser("upload-local", help="Upload local files to Drive if missing in index")
-    upload_local_parser.add_argument("--dir", required=True, help="Local directory containing files")
-    upload_local_parser.add_argument("--remote", default="jiteshece:", help="Rclone remote name")
-    upload_local_parser.add_argument("--dest", required=True, help="Destination folder name under photos_backUp (e.g. O Consuming)")
+    upload_local_parser = sync_sub.add_parser(
+        "upload-local", help="Upload local files to Drive if missing in index"
+    )
+    upload_local_parser.add_argument(
+        "--dir", required=True, help="Local directory containing files"
+    )
+    upload_local_parser.add_argument(
+        "--remote", default="jiteshece:", help="Rclone remote name"
+    )
+    upload_local_parser.add_argument(
+        "--dest",
+        required=True,
+        help="Destination folder name under photos_backUp (e.g. O Consuming)",
+    )
 
     # Metadata commands
     meta_parser = subparsers.add_parser("metadata", help="Fix timestamps and metadata")
     meta_sub = meta_parser.add_subparsers(dest="subcommand", required=True)
 
-    fix_drive_parser = meta_sub.add_parser("fix-drive", help="Fix mismatched timestamps on Drive")
-    fix_drive_parser.add_argument("--remote", default="jiteshece:", help="Rclone remote name")
+    fix_drive_parser = meta_sub.add_parser(
+        "fix-drive", help="Fix mismatched timestamps on Drive"
+    )
+    fix_drive_parser.add_argument(
+        "--remote", default="jiteshece:", help="Rclone remote name"
+    )
 
     meta_sub.add_parser("fix-local", help="Fix local timestamps")
 
-    verify_csv_parser = meta_sub.add_parser("verify-csv", help="Verify local photo timestamps against a CSV metadata file")
-    verify_csv_parser.add_argument("--csv", required=True, help="Path to CSV metadata file")
-    verify_csv_parser.add_argument("--dir", required=True, help="Directory containing photos")
-    
-    meta_sub.add_parser("verify-takeout", help="Verify local photo timestamps and EXIF tags against Google Takeout match log index")
+    verify_csv_parser = meta_sub.add_parser(
+        "verify-csv", help="Verify local photo timestamps against a CSV metadata file"
+    )
+    verify_csv_parser.add_argument(
+        "--csv", required=True, help="Path to CSV metadata file"
+    )
+    verify_csv_parser.add_argument(
+        "--dir", required=True, help="Directory containing photos"
+    )
+
+    meta_sub.add_parser(
+        "verify-takeout",
+        help="Verify local photo timestamps and EXIF tags against Google Takeout match log index",
+    )
 
     # Process commands (Placeholder for now)
-    process_parser = subparsers.add_parser("process", help="Process local photos based on CSV metadata")
+    process_parser = subparsers.add_parser(
+        "process", help="Process local photos based on CSV metadata"
+    )
     process_sub = process_parser.add_subparsers(dest="subcommand", required=True)
     process_sub.add_parser("backup", help="Process backup photos")
     process_sub.add_parser("trash", help="Process trashed photos")
-    takeout_parser = process_sub.add_parser("takeout", help="Process Google Takeout directories merging JSON metadata")
-    takeout_parser.add_argument("--dir", required=True, help="Path to Google Takeout directory")
+    takeout_parser = process_sub.add_parser(
+        "takeout", help="Process Google Takeout directories merging JSON metadata"
+    )
+    takeout_parser.add_argument(
+        "--dir", required=True, help="Path to Google Takeout directory"
+    )
 
     args = parser.parse_args()
 
@@ -74,13 +124,17 @@ def main():
     elif args.command == "process":
         if args.subcommand == "backup":
             import src.process_backup as bp
+
             bp.main()
         elif args.subcommand == "trash":
             import src.process_trash as tp
+
             tp.main()
         elif args.subcommand == "takeout":
             import src.process_takeout as pt
+
             pt.main(args.dir)
+
 
 if __name__ == "__main__":
     main()

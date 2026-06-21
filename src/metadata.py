@@ -5,6 +5,7 @@ from pathlib import Path
 from src.sync import run_rclone_commands
 from src.logger import log
 
+
 def get_local_files(directory):
     local_files = {}
     if not os.path.isdir(directory):
@@ -12,28 +13,30 @@ def get_local_files(directory):
 
     for root, dirs, files in os.walk(directory):
         for file in files:
-            if file.startswith('.'): continue
+            if file.startswith("."):
+                continue
             path = os.path.join(root, file)
             mtime = os.path.getmtime(path)
             dt = datetime.fromtimestamp(mtime, tz=timezone.utc)
-            local_files[file] = {'path': path, 'mtime': mtime, 'dt': dt}
+            local_files[file] = {"path": path, "mtime": mtime, "dt": dt}
     return local_files
+
 
 def cmd_metadata_fix_drive(remote_name):
     log.info("=== Google Drive Metadata Fix ===")
-    drive_index_path = 'data/json/drive_index_photo_backUp.json'
+    drive_index_path = "data/json/drive_index_photo_backUp.json"
     if not os.path.exists(drive_index_path):
         log.error(f"Error: {drive_index_path} not found.")
         return
 
-    local_backup = get_local_files('data/photos/photos_backUp')
-    local_trash = get_local_files('data/photos/Trashed Photos-3-001')
+    local_backup = get_local_files("data/photos/photos_backUp")
+    local_trash = get_local_files("data/photos/Trashed Photos-3-001")
 
     local_files = {}
     local_files.update(local_backup)
     local_files.update(local_trash)
 
-    with open(drive_index_path, 'r', encoding='utf-8') as f:
+    with open(drive_index_path, "r", encoding="utf-8") as f:
         drive_data = json.load(f)
 
     if not remote_name.endswith(":"):
@@ -44,35 +47,46 @@ def cmd_metadata_fix_drive(remote_name):
 
     log.info("Comparing timestamps with Drive index...")
     for entry in drive_data:
-        path = entry.get('Path') or entry.get('path')
-        if not path or entry.get('IsDir'): continue
+        path = entry.get("Path") or entry.get("path")
+        if not path or entry.get("IsDir"):
+            continue
 
-        if path.startswith('photos_backUp/'):
-            name = entry.get('Name') or entry.get('name')
+        if path.startswith("photos_backUp/"):
+            name = entry.get("Name") or entry.get("name")
             if name in local_files:
-                drive_mtime_str = entry.get('ModTime') or entry.get('modTime')
+                drive_mtime_str = entry.get("ModTime") or entry.get("modTime")
                 try:
-                    drive_dt = datetime.fromisoformat(drive_mtime_str.replace('Z', '+00:00'))
-                    local_dt = local_files[name]['dt']
+                    drive_dt = datetime.fromisoformat(
+                        drive_mtime_str.replace("Z", "+00:00")
+                    )
+                    local_dt = local_files[name]["dt"]
                     diff_seconds = abs((drive_dt - local_dt).total_seconds())
 
                     if diff_seconds > 2.0:
                         mismatch_count += 1
                         local_utc_dt = local_dt.astimezone(timezone.utc)
-                        timestamp_str = local_utc_dt.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]
-                        touch_commands.append(f'rclone touch --timestamp "{timestamp_str}" "{remote_name}{path}"')
+                        timestamp_str = local_utc_dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[
+                            :-3
+                        ]
+                        touch_commands.append(
+                            f'rclone touch --timestamp "{timestamp_str}" "{remote_name}{path}"'
+                        )
                 except Exception as e:
                     log.error(f"Error comparing dates for {name}: {e}")
 
     log.info(f"Total mismatched files identified: {mismatch_count}")
 
     if touch_commands:
-        if input("Run fix via rclone touch now? (y/n): ").strip().lower() == 'y':
+        if input("Run fix via rclone touch now? (y/n): ").strip().lower() == "y":
             run_rclone_commands(touch_commands)
+
 
 def cmd_metadata_fix_local():
     log.info("=== Local Files Metadata Fix ===")
-    log.info("Migrating logic from fix_local_timestamps.py... (To be fully implemented if needed)")
+    log.info(
+        "Migrating logic from fix_local_timestamps.py... (To be fully implemented if needed)"
+    )
+
 
 def cmd_metadata_verify_csv(csv_path, photos_dir):
     import csv
@@ -90,7 +104,7 @@ def cmd_metadata_verify_csv(csv_path, photos_dir):
     # Inner helpers
     def parse_csv_timestamp(taken_at_str, offset_ms):
         try:
-            dt_str = taken_at_str.split('.')[0].replace('Z', '')
+            dt_str = taken_at_str.split(".")[0].replace("Z", "")
             dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%S")
             if not offset_ms:
                 offset_ms = 0
@@ -102,12 +116,14 @@ def cmd_metadata_verify_csv(csv_path, photos_dir):
     def get_exif_metadata(filepath):
         try:
             cmd = ["exiftool", "-s", "-DateTimeOriginal", "-FileModifyDate", filepath]
-            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            lines = res.stdout.strip().split('\n')
+            res = subprocess.run(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            lines = res.stdout.strip().split("\n")
             tags = {}
             for line in lines:
-                if ':' in line:
-                    k, v = line.split(':', 1)
+                if ":" in line:
+                    k, v = line.split(":", 1)
                     tags[k.strip()] = v.strip()
             return tags
         except:
@@ -131,14 +147,14 @@ def cmd_metadata_verify_csv(csv_path, photos_dir):
         if not time_str:
             return None
         try:
-            clean_str = time_str.split('+')[0].split('-')[0].strip()
+            clean_str = time_str.split("+")[0].split("-")[0].strip()
             return datetime.strptime(clean_str, "%Y:%m:%d %H:%M:%S")
         except:
             return None
 
     # Read CSV
     csv_rows = []
-    with open(csv_path, 'r', encoding='utf-8') as f:
+    with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             csv_rows.append(row)
@@ -147,7 +163,8 @@ def cmd_metadata_verify_csv(csv_path, photos_dir):
     photo_files = []
     for root, dirs, files in os.walk(photos_dir):
         for file in files:
-            if file == '.DS_Store': continue
+            if file == ".DS_Store":
+                continue
             photo_files.append(os.path.join(root, file))
 
     log.info(f"Found {len(photo_files)} photos in directory.")
@@ -162,7 +179,7 @@ def cmd_metadata_verify_csv(csv_path, photos_dir):
         filename = os.path.basename(filepath)
         matched_row = None
         for i, row in enumerate(csv_rows):
-            if names_match(filename, row['fileName']):
+            if names_match(filename, row["fileName"]):
                 matched_row = row
                 matched_csv_rows.add(i)
                 break
@@ -171,8 +188,8 @@ def cmd_metadata_verify_csv(csv_path, photos_dir):
             not_in_csv.append(filename)
             continue
 
-        taken_at = matched_row['takenAt']
-        offset = matched_row['timezoneOffsetMs']
+        taken_at = matched_row["takenAt"]
+        offset = matched_row["timezoneOffsetMs"]
 
         expected_options = []
         parsed = parse_csv_timestamp(taken_at, offset)
@@ -180,13 +197,15 @@ def cmd_metadata_verify_csv(csv_path, photos_dir):
             expected_options.append(parsed)
         if not offset:
             parsed_ist = parse_csv_timestamp(taken_at, 19800000)
-            if parsed_ist: expected_options.append(parsed_ist)
+            if parsed_ist:
+                expected_options.append(parsed_ist)
             parsed_utc = parse_csv_timestamp(taken_at, 0)
-            if parsed_utc: expected_options.append(parsed_utc)
+            if parsed_utc:
+                expected_options.append(parsed_utc)
 
         metadata = get_exif_metadata(filepath)
-        dto = parse_exif_time(metadata.get('DateTimeOriginal'))
-        fmd = parse_exif_time(metadata.get('FileModifyDate'))
+        dto = parse_exif_time(metadata.get("DateTimeOriginal"))
+        fmd = parse_exif_time(metadata.get("FileModifyDate"))
 
         dto_matches = False
         best_expected = expected_options[0] if expected_options else None
@@ -206,41 +225,57 @@ def cmd_metadata_verify_csv(csv_path, photos_dir):
         if dto_matches:
             matches += 1
         else:
-            mismatches.append({
-                'filename': filename,
-                'expected': best_expected.strftime("%Y:%m:%d %H:%M:%S") if best_expected else "None",
-                'exif_dto': metadata.get('DateTimeOriginal'),
-                'file_modify_date': metadata.get('FileModifyDate')
-            })
+            mismatches.append(
+                {
+                    "filename": filename,
+                    "expected": (
+                        best_expected.strftime("%Y:%m:%d %H:%M:%S")
+                        if best_expected
+                        else "None"
+                    ),
+                    "exif_dto": metadata.get("DateTimeOriginal"),
+                    "file_modify_date": metadata.get("FileModifyDate"),
+                }
+            )
 
     log.info(f"Matches (EXIF matches CSV within 2s): {matches}")
     log.info(f"Mismatches: {len(mismatches)}")
     log.info(f"Photos not found in CSV: {len(not_in_csv)}")
 
-    missing_from_dir = [row['fileName'] for i, row in enumerate(csv_rows) if i not in matched_csv_rows]
+    missing_from_dir = [
+        row["fileName"] for i, row in enumerate(csv_rows) if i not in matched_csv_rows
+    ]
     log.info(f"CSV entries not found in directory: {len(missing_from_dir)}")
 
     if mismatches:
         log.info("Mismatch details (First 10):")
         for m in mismatches[:10]:
-            log.info(f"  - {m['filename']}: Expected={m['expected']}, EXIF={m['exif_dto']}, FileModify={m['file_modify_date']}")
+            log.info(
+                f"  - {m['filename']}: Expected={m['expected']}, EXIF={m['exif_dto']}, FileModify={m['file_modify_date']}"
+            )
+
 
 def cmd_metadata_verify_takeout():
     import subprocess
+
     log.info("=== Verify Google Takeout Metadata Merger ===")
     match_log_path = "data/json/takeout_match.json"
     if not os.path.exists(match_log_path):
-        log.error(f"Error: Match log '{match_log_path}' not found. Please run the takeout command first.")
+        log.error(
+            f"Error: Match log '{match_log_path}' not found. Please run the takeout command first."
+        )
         return
 
     try:
-        with open(match_log_path, 'r', encoding='utf-8') as f:
+        with open(match_log_path, "r", encoding="utf-8") as f:
             records = json.load(f)
     except Exception as e:
         log.error(f"Error reading match log: {e}")
         return
 
-    log.info(f"Loaded {len(records)} records from {match_log_path}. Auditing local files...")
+    log.info(
+        f"Loaded {len(records)} records from {match_log_path}. Auditing local files..."
+    )
 
     failed_files_count = 0
     mtime_failures = 0
@@ -257,18 +292,19 @@ def cmd_metadata_verify_takeout():
         filename = os.path.basename(media_path)
 
         if not os.path.exists(media_path):
-            log.warning(f"Auditing [{idx}/{total}] {filename}... ❌ Failed (File does not exist on disk)")
-            mismatches.append({
-                "path": media_path,
-                "reason": "File does not exist on disk"
-            })
+            log.warning(
+                f"Auditing [{idx}/{total}] {filename}... ❌ Failed (File does not exist on disk)"
+            )
+            mismatches.append(
+                {"path": media_path, "reason": "File does not exist on disk"}
+            )
             failed_files_count += 1
             continue
 
         # 1. Check Filesystem Modification Time
         mtime = os.path.getmtime(media_path)
         diff_mtime = abs(mtime - expected_ts)
-        mtime_ok = (diff_mtime <= 2.0) # 2s tolerance
+        mtime_ok = diff_mtime <= 2.0  # 2s tolerance
 
         # 2. Check EXIF DateTimeOriginal
         cmd = ["exiftool", "-s", "-DateTimeOriginal", media_path]
@@ -280,10 +316,12 @@ def cmd_metadata_verify_takeout():
             dto_val = dto_val.strip()
 
         exif_ok = True
-        expected_dto = datetime.fromtimestamp(expected_ts, tz=timezone.utc).strftime('%Y:%m:%d %H:%M:%S')
+        expected_dto = datetime.fromtimestamp(expected_ts, tz=timezone.utc).strftime(
+            "%Y:%m:%d %H:%M:%S"
+        )
 
         if dto_val:
-            clean_dto_val = dto_val.split('+')[0].split('-')[0].strip()
+            clean_dto_val = dto_val.split("+")[0].split("-")[0].strip()
             if clean_dto_val != expected_dto:
                 exif_ok = False
         else:
@@ -304,15 +342,21 @@ def cmd_metadata_verify_takeout():
                 reasons.append("EXIF header missing or mismatch")
 
             reasons_str = ", ".join(reasons)
-            log.warning(f"Auditing [{idx}/{total}] {filename}... ❌ Failed ({reasons_str})")
+            log.warning(
+                f"Auditing [{idx}/{total}] {filename}... ❌ Failed ({reasons_str})"
+            )
 
-            mismatches.append({
-                "path": media_path,
-                "reason": reasons_str,
-                "expected_time": expected_dto,
-                "actual_mtime": datetime.fromtimestamp(mtime, tz=timezone.utc).strftime('%Y:%m:%d %H:%M:%S'),
-                "actual_exif": dto_val if dto_val else "None"
-            })
+            mismatches.append(
+                {
+                    "path": media_path,
+                    "reason": reasons_str,
+                    "expected_time": expected_dto,
+                    "actual_mtime": datetime.fromtimestamp(
+                        mtime, tz=timezone.utc
+                    ).strftime("%Y:%m:%d %H:%M:%S"),
+                    "actual_exif": dto_val if dto_val else "None",
+                }
+            )
         else:
             log.info(f"Auditing [{idx}/{total}] {filename}... ✅ Passed")
 
@@ -327,7 +371,8 @@ def cmd_metadata_verify_takeout():
         for m in mismatches[:10]:
             log.warning(f"  - {os.path.basename(m['path'])}: {m['reason']}")
             if "expected_time" in m:
-                log.warning(f"    Expected: {m['expected_time']} | Actual mtime: {m['actual_mtime']} | Actual EXIF: {m['actual_exif']}")
+                log.warning(
+                    f"    Expected: {m['expected_time']} | Actual mtime: {m['actual_mtime']} | Actual EXIF: {m['actual_exif']}"
+                )
     else:
         log.info("🎉 All records verified successfully!")
-

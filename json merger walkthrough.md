@@ -42,3 +42,19 @@ You don't need to rename or clean up anything beforehand. The script automatical
 After execution, the script generates two index summaries in the `data/json/` directory:
 * **[takeout_match.json](file:///Users/hiijitesh/Documents/google-photos-cleaner/data/json/takeout_match.json):** A detailed list of all matched files, timestamps, and locations that were updated.
 * **[takeout_unmatched.json](file:///Users/hiijitesh/Documents/google-photos-cleaner/data/json/takeout_unmatched.json):** Any JSON files that could not be matched (will be empty `[]` on a perfect run).
+
+---
+
+## 🔍 How Verification Works (JSON vs. Filename Timestamps)
+
+When you run `verify-takeout`, it audits the files using the following logic:
+
+### 1. Expected Time vs. Actual Time
+* **Expected Time:** The ground-truth timestamp extracted from the Google Photos Takeout JSON.
+* **Actual Time:** The timestamp currently on the photo file (filesystem modified time and internal EXIF headers).
+* The script confirms that the **Actual Time** on disk matches the **Expected Time** from the database log.
+
+### 2. Why we don't verify against the Filename Timestamp
+* **Missing Filename Timestamps:** Many exported photos (such as Snapchat images or custom-named files, e.g., `Snapchat-1969078348.jpg`) have no dates or times in their filenames.
+* **Database Ground Truth:** Google Photos' internal database timestamp (found in the JSON) is the ultimate source of truth for where the photo sits on your timeline, even if the filename differs slightly due to upload delays or timezone shifts.
+* **Association by Name:** Filenames are strictly used to *match* the `.json` file to the correct photo, but the metadata inside the JSON is what is written and verified.

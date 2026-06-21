@@ -1,6 +1,6 @@
 import argparse
 import sys
-from src.sync import cmd_sync_backup, cmd_sync_trash
+from src.sync import cmd_sync_backup, cmd_sync_trash, cmd_sync_consuming
 from src.metadata import cmd_metadata_fix_drive, cmd_metadata_fix_local
 
 def main():
@@ -16,6 +16,10 @@ def main():
     
     trash_parser = sync_sub.add_parser("trash", help="Sync trashed photos")
     trash_parser.add_argument("--remote", default="jiteshece:", help="Rclone remote name")
+    
+    consuming_parser = sync_sub.add_parser("consuming", help="Sync space-consuming photos from CSV metadata")
+    consuming_parser.add_argument("--csv", required=True, help="Path to GPTK consuming metadata CSV file")
+    consuming_parser.add_argument("--remote", default="jiteshece:", help="Rclone remote name")
 
     # Metadata commands
     meta_parser = subparsers.add_parser("metadata", help="Fix timestamps and metadata")
@@ -39,6 +43,8 @@ def main():
             cmd_sync_backup(args.remote)
         elif args.subcommand == "trash":
             cmd_sync_trash(args.remote)
+        elif args.subcommand == "consuming":
+            cmd_sync_consuming(args.csv, args.remote)
             
     elif args.command == "metadata":
         if args.subcommand == "fix-drive":

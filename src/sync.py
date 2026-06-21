@@ -136,3 +136,86 @@ def cmd_sync_trash(remote_name):
     if commands:
         if input("Run sync now? (y/n): ").strip().lower() == 'y':
             run_rclone_commands(commands)
+
+def cmd_sync_consuming(csv_path, remote_name):
+    log.info("=== Google Drive Consuming Album Sync ===")
+    if not os.path.exists(csv_path):
+        log.error(f"Error: CSV file {csv_path} not found.")
+        return
+
+    target_files = set()
+    with open(csv_path, "r", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            filename = row.get("fileName", "").strip()
+            if filename:
+                target_files.add(filename)
+
+    if not target_files:
+        log.warning("No filenames found in CSV.")
+        return
+
+    drive_index_path = "data/json/drive_index.json"
+    if not os.path.exists(drive_index_path):
+        log.error("Error: drive_index.json not found.")
+        return
+
+    with open(drive_index_path, "r", encoding="utf-8") as f:
+        drive_lookup_lower = {}
+        for item in json.load(f):
+            if not item.get("IsDir", False):
+                name = item.get("Name") or item.get("name")
+                if name:
+                    drive_lookup_lower.setdefault(name.lower(), []).append(item)
+
+    if not remote_name.endswith(":"):
+        remote_name += ":"
+
+    commands = []
+    already_backed_up = []
+    missing_files = []
+    other_places = []
+
+    for filename in sorted(target_files):
+        filename_lower = filename.lower()
+        if filename_lower not in drive_lookup_lower:
+            missing_files.append(filename)
+            continue
+
+        # Check if already in photos_backUp
+        in_backup = False
+        exact_entry = None
+        for entry in drive_lookup_lower[filename_lower]:
+            path = entry.get("Path") or entry.get("path")
+            if path.startswith("photos_backUp/"):
+                in_backup = True
+            # Prefer exact name match if available
+            if entry.get("Name") == filename or exact_entry is None:
+                exact_entry = entry
+
+        if in_backup:
+            already_backed_up.append(filename)
+        else:
+            other_places.append((filename, exact_entry))
+            # Destination path: directly inside photos_backUp (don't create subfolders)
+            drive_filename = exact_entry.get("Name") or exact_entry.get("name")
+            source_path = exact_entry["Path"]
+            target_path = f"photos_backUp/{drive_filename}"
+            commands.append(f'rclone copyto --ignore-existing "{remote_name}{source_path}" "{remote_name}{target_path}"')
+
+    log.info("Summary:")
+    log.info(f"  Total unique files in CSV: {len(target_files)}")
+    log.info(f"  Already in photos_backUp: {len(already_backed_up)}")
+    log.info(f"  Missing from Google Drive: {len(missing_files)}")
+    log.info(f"  Found in Drive but not in photos_backUp: {len(other_places)}")
+
+    if other_places:
+        log.info("Files to be added to photos_backUp:")
+        for name, entry in other_places:
+            log.info(f"  - {name} (currently at: {entry['Path']})")
+
+    if commands:
+        if input("Run copy commands now? (y/n): ").strip().lower() == 'y':
+            run_rclone_commands(commands)
+    else:
+        log.info("No files need to be copied.")
+

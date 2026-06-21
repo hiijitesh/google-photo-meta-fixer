@@ -77,6 +77,17 @@ python3 cleaner.py process backup
 python3 cleaner.py process trash
 ```
 
+### 4. Google Takeout Metadata Merger (`process takeout`)
+Recursively walks a Google Takeout directory to find companion JSON files, extract timestamps, descriptions, and GPS tags, and embed them into the photos/videos.
+
+```bash
+# Process and merge Google Takeout directory metadata
+python3 cleaner.py process takeout --dir <takeout_dir>
+
+# Verify Google Takeout metadata updates
+python3 cleaner.py metadata verify-takeout
+```
+
 ---
 
 ## 🧠 Core System Design & Workflow
@@ -98,6 +109,12 @@ rclone lsjson -R "jiteshece:photos_backUp" > data/json/drive_index_photo_backUp.
 1. The script loads the local files (`data/photos/photos_backUp`) and indexes their sizes and modification times.
 2. It compares them to the cached `drive_index_photo_backUp.json`.
 3. If timestamps mismatch (e.g., due to timezone shifts or upload bugs), the `metadata fix-drive` command uses `rclone touch` to adjust the remote file's modified time without re-uploading the file payload.
+
+### 4. Google Takeout Metadata Merger & Matching Logic
+For a complete guide of the algorithms, code snippets, and design choices behind this feature, see [LEARNING.md](file:///Users/hiijitesh/Documents/google-photos-cleaner/LEARNING.md). Below is a summary of the core concepts:
+- **Fuzzy Filename Matching:** Resolves Takeout quirks such as name truncations, supplemental suffixes (e.g. `.supplemental-metadata.json`, `.supp.json`), double dots (`..json`), and duplicate bracket shifts (e.g. `photo.jpg(1).json` matching `photo(1).jpg`).
+- **Batch Exiftool Operations:** Minimizes process startup overhead by writing all modifications to a single temporary JSON and importing it in one command using `exiftool -json=temp.json -@ files.txt`.
+- **Filesystem Date Correction:** Updates the filesystem `mtime` using Python's `os.utime()` to match the JSON's true epoch timestamp (seconds since epoch) so that Finder and File Explorer sort photos chronologically.
 
 ---
 

@@ -58,3 +58,8 @@ When you run `verify-takeout`, it audits the files using the following logic:
 * **Missing Filename Timestamps:** Many exported photos (such as Snapchat images or custom-named files, e.g., `Snapchat-1969078348.jpg`) have no dates or times in their filenames.
 * **Database Ground Truth:** Google Photos' internal database timestamp (found in the JSON) is the ultimate source of truth for where the photo sits on your timeline, even if the filename differs slightly due to upload delays or timezone shifts.
 * **Association by Name:** Filenames are strictly used to *match* the `.json` file to the correct photo, but the metadata inside the JSON is what is written and verified.
+
+---
+
+## 🧠 Core System Design & Concepts Reference
+For a complete guide to the matching algorithms, Exiftool batch processing, and filesystem time updates with code examples, check out **[LEARNING.md](file:///Users/hiijitesh/Documents/google-photos-cleaner/LEARNING.md)**.

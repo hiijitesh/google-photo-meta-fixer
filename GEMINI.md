@@ -83,3 +83,9 @@ When interacting with Google Drive via `rclone`:
   ```bash
   python3 cleaner.py metadata verify-csv --csv <csv_path> --dir <local_dir>
   ```
+
+### Processing Subcommands
+* **Merge Google Takeout JSON Metadata:** Recursively walk a Google Takeout directory to find companion JSON files, match them to their media files, update the EXIF tags (using `exiftool` if installed), and update local filesystem modification times:
+  ```bash
+  python3 cleaner.py process takeout --dir <takeout_dir>
+  ```

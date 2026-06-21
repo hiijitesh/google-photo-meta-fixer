@@ -83,6 +83,10 @@ When interacting with Google Drive via `rclone`:
   ```bash
   python3 cleaner.py metadata verify-csv --csv <csv_path> --dir <local_dir>
   ```
+* **Verify Takeout Timestamps:** Audit the EXIF timestamps and filesystem modification dates of files matching the Google Takeout match log index (`data/json/takeout_match.json`):
+  ```bash
+  python3 cleaner.py metadata verify-takeout
+  ```
 
 ### Processing Subcommands
 * **Merge Google Takeout JSON Metadata:** Recursively walk a Google Takeout directory to find companion JSON files, match them to their media files, update the EXIF tags (using `exiftool` if installed), and update local filesystem modification times:

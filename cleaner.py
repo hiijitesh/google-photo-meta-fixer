@@ -1,7 +1,7 @@
 import argparse
 import sys
-from src.sync import cmd_sync_backup, cmd_sync_trash, cmd_sync_consuming
-from src.metadata import cmd_metadata_fix_drive, cmd_metadata_fix_local
+from src.sync import cmd_sync_backup, cmd_sync_trash, cmd_sync_consuming, cmd_sync_upload_local
+from src.metadata import cmd_metadata_fix_drive, cmd_metadata_fix_local, cmd_metadata_verify_csv
 
 def main():
     parser = argparse.ArgumentParser(description="Google Photos Cleaner CLI")
@@ -10,25 +10,34 @@ def main():
     # Sync commands
     sync_parser = subparsers.add_parser("sync", help="Sync files with Google Drive")
     sync_sub = sync_parser.add_subparsers(dest="subcommand", required=True)
-    
+
     backup_parser = sync_sub.add_parser("backup", help="Sync backup photos")
     backup_parser.add_argument("--remote", default="jiteshece:", help="Rclone remote name")
-    
+
     trash_parser = sync_sub.add_parser("trash", help="Sync trashed photos")
     trash_parser.add_argument("--remote", default="jiteshece:", help="Rclone remote name")
-    
+
     consuming_parser = sync_sub.add_parser("consuming", help="Sync space-consuming photos from CSV metadata")
     consuming_parser.add_argument("--csv", required=True, help="Path to GPTK consuming metadata CSV file")
     consuming_parser.add_argument("--remote", default="jiteshece:", help="Rclone remote name")
 
+    upload_local_parser = sync_sub.add_parser("upload-local", help="Upload local files to Drive if missing in index")
+    upload_local_parser.add_argument("--dir", required=True, help="Local directory containing files")
+    upload_local_parser.add_argument("--remote", default="jiteshece:", help="Rclone remote name")
+    upload_local_parser.add_argument("--dest", required=True, help="Destination folder name under photos_backUp (e.g. O Consuming)")
+
     # Metadata commands
     meta_parser = subparsers.add_parser("metadata", help="Fix timestamps and metadata")
     meta_sub = meta_parser.add_subparsers(dest="subcommand", required=True)
-    
+
     fix_drive_parser = meta_sub.add_parser("fix-drive", help="Fix mismatched timestamps on Drive")
     fix_drive_parser.add_argument("--remote", default="jiteshece:", help="Rclone remote name")
-    
+
     meta_sub.add_parser("fix-local", help="Fix local timestamps")
+
+    verify_csv_parser = meta_sub.add_parser("verify-csv", help="Verify local photo timestamps against a CSV metadata file")
+    verify_csv_parser.add_argument("--csv", required=True, help="Path to CSV metadata file")
+    verify_csv_parser.add_argument("--dir", required=True, help="Directory containing photos")
 
     # Process commands (Placeholder for now)
     process_parser = subparsers.add_parser("process", help="Process local photos based on CSV metadata")
@@ -45,13 +54,17 @@ def main():
             cmd_sync_trash(args.remote)
         elif args.subcommand == "consuming":
             cmd_sync_consuming(args.csv, args.remote)
-            
+        elif args.subcommand == "upload-local":
+            cmd_sync_upload_local(args.dir, args.remote, args.dest)
+
     elif args.command == "metadata":
         if args.subcommand == "fix-drive":
             cmd_metadata_fix_drive(args.remote)
         elif args.subcommand == "fix-local":
             cmd_metadata_fix_local()
-            
+        elif args.subcommand == "verify-csv":
+            cmd_metadata_verify_csv(args.csv, args.dir)
+
     elif args.command == "process":
         if args.subcommand == "backup":
             import src.process_backup as bp

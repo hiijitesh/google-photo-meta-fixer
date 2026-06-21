@@ -219,3 +219,70 @@ def cmd_sync_consuming(csv_path, remote_name):
     else:
         log.info("No files need to be copied.")
 
+def cmd_sync_upload_local(local_dir, remote_name, dest_subfolder):
+    log.info("=== Google Drive Local Upload Sync ===")
+    if not os.path.isdir(local_dir):
+        log.error(f"Error: Local directory {local_dir} not found.")
+        return
+
+    drive_index_path = "data/json/drive_index_photo_backUp.json"
+    if not os.path.exists(drive_index_path):
+        log.error("Error: drive_index_photo_backUp.json not found.")
+        return
+
+    # 1. Scan local files
+    local_files = {}
+    for root, dirs, files in os.walk(local_dir):
+        for file in files:
+            if file == '.DS_Store':
+                continue
+            local_path = os.path.join(root, file)
+            local_files[file.lower()] = {
+                'name': file,
+                'path': local_path
+            }
+            
+    log.info(f"Found {len(local_files)} local files to check.")
+    
+    # 2. Load drive index
+    with open(drive_index_path, 'r', encoding='utf-8') as f:
+        drive_data = json.load(f)
+        
+    drive_files = set()
+    for item in drive_data:
+        if not item.get("IsDir", False):
+            name = item.get("Name") or item.get("name")
+            if name:
+                drive_files.add(name.lower())
+                
+    log.info(f"Found {len(drive_files)} files in Google Drive photos_backUp index.")
+    
+    # 3. Compare and build upload commands
+    if not remote_name.endswith(":"):
+        remote_name += ":"
+
+    upload_commands = []
+    missing_files = []
+    
+    for filename_lower, info in local_files.items():
+        if filename_lower not in drive_files:
+            missing_files.append(info['name'])
+            target_path = f"photos_backUp/{dest_subfolder}/{info['name']}"
+            cmd = f'rclone copyto "{info["path"]}" "{remote_name}{target_path}"'
+            upload_commands.append(cmd)
+            
+    log.info(f"Missing files from Google Drive: {len(missing_files)}")
+    if missing_files:
+        log.info("First 10 missing files:")
+        for name in missing_files[:10]:
+            log.info(f"  - {name}")
+            
+    if upload_commands:
+        log.info(f"Created {len(upload_commands)} upload commands.")
+        if input("Run upload commands now? (y/n): ").strip().lower() == 'y':
+            run_rclone_commands(upload_commands)
+            log.info("Upload complete!")
+    else:
+        log.info("All files are already present on Google Drive.")
+
+

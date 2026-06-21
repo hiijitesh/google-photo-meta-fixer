@@ -73,3 +73,155 @@ def cmd_metadata_fix_drive(remote_name):
 def cmd_metadata_fix_local():
     log.info("=== Local Files Metadata Fix ===")
     log.info("Migrating logic from fix_local_timestamps.py... (To be fully implemented if needed)")
+
+def cmd_metadata_verify_csv(csv_path, photos_dir):
+    import csv
+    import subprocess
+    
+    log.info("=== Verify Local Photos Against CSV ===")
+    if not os.path.exists(csv_path):
+        log.error(f"Error: CSV file {csv_path} not found.")
+        return
+        
+    if not os.path.isdir(photos_dir):
+        log.error(f"Error: Photos directory {photos_dir} not found.")
+        return
+
+    # Inner helpers
+    def parse_csv_timestamp(taken_at_str, offset_ms):
+        try:
+            dt_str = taken_at_str.split('.')[0].replace('Z', '')
+            dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%S")
+            if not offset_ms:
+                offset_ms = 0
+            offset_td = timedelta(milliseconds=float(offset_ms))
+            return dt + offset_td
+        except Exception as e:
+            return None
+
+    def get_exif_metadata(filepath):
+        try:
+            cmd = ["exiftool", "-s", "-DateTimeOriginal", "-FileModifyDate", filepath]
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            lines = res.stdout.strip().split('\n')
+            tags = {}
+            for line in lines:
+                if ':' in line:
+                    k, v = line.split(':', 1)
+                    tags[k.strip()] = v.strip()
+            return tags
+        except:
+            return {}
+
+    def names_match(dir_name, csv_name):
+        if dir_name == csv_name:
+            return True
+        dir_base, _ = os.path.splitext(dir_name)
+        csv_base, _ = os.path.splitext(csv_name)
+        dir_base = dir_base.replace("-edited", "")
+        csv_base = csv_base.replace("-edited", "")
+        if dir_base == csv_base:
+            return True
+        if len(dir_base) >= 20 and len(csv_base) >= 20:
+            if dir_base.startswith(csv_base) or csv_base.startswith(dir_base):
+                return True
+        return False
+
+    def parse_exif_time(time_str):
+        if not time_str:
+            return None
+        try:
+            clean_str = time_str.split('+')[0].split('-')[0].strip()
+            return datetime.strptime(clean_str, "%Y:%m:%d %H:%M:%S")
+        except:
+            return None
+
+    # Read CSV
+    csv_rows = []
+    with open(csv_path, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            csv_rows.append(row)
+            
+    # Scan directory
+    photo_files = []
+    for root, dirs, files in os.walk(photos_dir):
+        for file in files:
+            if file == '.DS_Store': continue
+            photo_files.append(os.path.join(root, file))
+            
+    log.info(f"Found {len(photo_files)} photos in directory.")
+    log.info(f"Found {len(csv_rows)} entries in CSV.")
+    
+    mismatches = []
+    matches = 0
+    not_in_csv = []
+    matched_csv_rows = set()
+    
+    for filepath in photo_files:
+        filename = os.path.basename(filepath)
+        matched_row = None
+        for i, row in enumerate(csv_rows):
+            if names_match(filename, row['fileName']):
+                matched_row = row
+                matched_csv_rows.add(i)
+                break
+                
+        if not matched_row:
+            not_in_csv.append(filename)
+            continue
+            
+        taken_at = matched_row['takenAt']
+        offset = matched_row['timezoneOffsetMs']
+        
+        expected_options = []
+        parsed = parse_csv_timestamp(taken_at, offset)
+        if parsed:
+            expected_options.append(parsed)
+        if not offset:
+            parsed_ist = parse_csv_timestamp(taken_at, 19800000)
+            if parsed_ist: expected_options.append(parsed_ist)
+            parsed_utc = parse_csv_timestamp(taken_at, 0)
+            if parsed_utc: expected_options.append(parsed_utc)
+            
+        metadata = get_exif_metadata(filepath)
+        dto = parse_exif_time(metadata.get('DateTimeOriginal'))
+        fmd = parse_exif_time(metadata.get('FileModifyDate'))
+        
+        dto_matches = False
+        best_expected = expected_options[0] if expected_options else None
+        
+        for exp in expected_options:
+            if dto:
+                if abs((dto - exp).total_seconds()) <= 2:
+                    dto_matches = True
+                    best_expected = exp
+                    break
+            elif fmd:
+                if abs((fmd - exp).total_seconds()) <= 2:
+                    dto_matches = True
+                    best_expected = exp
+                    break
+                    
+        if dto_matches:
+            matches += 1
+        else:
+            mismatches.append({
+                'filename': filename,
+                'expected': best_expected.strftime("%Y:%m:%d %H:%M:%S") if best_expected else "None",
+                'exif_dto': metadata.get('DateTimeOriginal'),
+                'file_modify_date': metadata.get('FileModifyDate')
+            })
+            
+    log.info(f"Matches (EXIF matches CSV within 2s): {matches}")
+    log.info(f"Mismatches: {len(mismatches)}")
+    log.info(f"Photos not found in CSV: {len(not_in_csv)}")
+    
+    missing_from_dir = [row['fileName'] for i, row in enumerate(csv_rows) if i not in matched_csv_rows]
+    log.info(f"CSV entries not found in directory: {len(missing_from_dir)}")
+    
+    if mismatches:
+        log.info("Mismatch details (First 10):")
+        for m in mismatches[:10]:
+            log.info(f"  - {m['filename']}: Expected={m['expected']}, EXIF={m['exif_dto']}, FileModify={m['file_modify_date']}")
+

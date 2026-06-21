@@ -27,6 +27,10 @@ To keep the repository clean and maintainable, future LLMs must adhere to the fo
 * All user actions must be triggered through the main argparse interface in `cleaner.py`.
 * When adding a new feature, register it as a subcommand (e.g., `python3 cleaner.py command subcommand --flags`).
 
+### 🎨 **Rule 3: Code Formatting (Black)**
+* All Python code must be formatted using the `black` formatter.
+* AI developers and LLMs MUST run `black` (e.g., `black src/*.py cleaner.py`) to format all modified or newly created Python code before completing tasks to avoid dirty diffs on save.
+
 ### 📁 Directory Layout Checklist
 ```
 .

@@ -6,16 +6,19 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 # Directories and files
-DRIVE_INDEX_PATH = 'data/json/drive_index.json'
-CSV_PATH = 'data/csv/Trash_v3_metadata (2).csv'
-DIRECTORIES = ['data/photos/Photos-3-001 (3)', 'data/photos/Photos-3-001 (4)']
+DRIVE_INDEX_PATH = "data/json/drive_index.json"
+CSV_PATH = "data/csv/Trash_v3_metadata (2).csv"
+DIRECTORIES = ["data/photos/Photos-3-001 (3)", "data/photos/Photos-3-001 (4)"]
 
-MATCHED_OUTPUT = 'data/json/trashed_v3_match.json'
-UNMATCHED_OUTPUT = 'data/json/trashed_v3_unmatched.json'
+MATCHED_OUTPUT = "data/json/trashed_v3_match.json"
+UNMATCHED_OUTPUT = "data/json/trashed_v3_unmatched.json"
 
 # Regex patterns
-RE_UNIX_MS = re.compile(r'^(\d{13})')
-RE_DATE_TIME = re.compile(r'((?:19|20)\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})')
+RE_UNIX_MS = re.compile(r"^(\d{13})")
+RE_DATE_TIME = re.compile(
+    r"((?:19|20)\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})"
+)
+
 
 def parse_filename_time(filename):
     """Try to extract a naive local datetime from the filename."""
@@ -33,50 +36,49 @@ def parse_filename_time(filename):
         try:
             return datetime(year, month, day, hour, minute, second)
         except ValueError:
-            pass # Invalid date
+            pass  # Invalid date
 
     return None
+
 
 def main():
     # 1. Load drive_index.json
     print(f"Loading {DRIVE_INDEX_PATH}...")
     drive_lookup = {}
-    with open(DRIVE_INDEX_PATH, 'r', encoding='utf-8') as f:
+    with open(DRIVE_INDEX_PATH, "r", encoding="utf-8") as f:
         drive_data = json.load(f)
         for entry in drive_data:
-            if not entry.get('IsDir', False):
-                key = (entry.get('Name'), entry.get('Size'))
+            if not entry.get("IsDir", False):
+                key = (entry.get("Name"), entry.get("Size"))
                 drive_lookup[key] = entry
     print(f"Loaded {len(drive_lookup)} files from drive index.")
 
     # 2. Load CSV and build a list of (utc_dt, local_dt, raw_row)
     print(f"Loading {CSV_PATH}...")
     csv_entries = []
-    with open(CSV_PATH, 'r', encoding='utf-8') as f:
+    with open(CSV_PATH, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            taken_at_str = row.get('takenAt', '')
+            taken_at_str = row.get("takenAt", "")
             if not taken_at_str:
                 continue
 
             # Parse takenAt e.g. 2021-07-28T06:54:29.891Z
             try:
                 # Remove Z and parse
-                taken_at_str = taken_at_str.replace('Z', '+00:00')
+                taken_at_str = taken_at_str.replace("Z", "+00:00")
                 utc_dt = datetime.fromisoformat(taken_at_str)
 
                 # Get offset
-                offset_ms = row.get('timezoneOffsetMs', '')
+                offset_ms = row.get("timezoneOffsetMs", "")
                 offset_ms = int(offset_ms) if offset_ms else 0
 
                 # Compute naive local datetime
-                local_dt = (utc_dt + timedelta(milliseconds=offset_ms)).replace(tzinfo=None)
+                local_dt = (utc_dt + timedelta(milliseconds=offset_ms)).replace(
+                    tzinfo=None
+                )
 
-                csv_entries.append({
-                    'utc_dt': utc_dt,
-                    'local_dt': local_dt,
-                    'row': row
-                })
+                csv_entries.append({"utc_dt": utc_dt, "local_dt": local_dt, "row": row})
             except Exception as e:
                 print(f"Error parsing date {taken_at_str}: {e}")
 
@@ -110,17 +112,23 @@ def main():
             if local_time_from_name and csv_entries:
                 # Find closest CSV entry checking both local and UTC times
                 closest_entry = None
-                min_diff = float('inf')
-                
+                min_diff = float("inf")
+
                 for entry in csv_entries:
-                    diff_local = abs((entry['local_dt'] - local_time_from_name).total_seconds())
-                    diff_utc = abs((entry['utc_dt'].replace(tzinfo=None) - local_time_from_name).total_seconds())
-                    
+                    diff_local = abs(
+                        (entry["local_dt"] - local_time_from_name).total_seconds()
+                    )
+                    diff_utc = abs(
+                        (
+                            entry["utc_dt"].replace(tzinfo=None) - local_time_from_name
+                        ).total_seconds()
+                    )
+
                     best_diff = min(diff_local, diff_utc)
                     if best_diff < min_diff:
                         min_diff = best_diff
                         closest_entry = entry
-                
+
                 # If it's within a reasonable threshold (e.g. 2 hours) we consider it a match
                 if min_diff < 7200:
                     best_csv_match = closest_entry
@@ -129,7 +137,7 @@ def main():
                 # Update local file timestamp
                 # os.utime expects timestamp in seconds since epoch.
                 # utc_dt.timestamp() provides exactly this because it's aware it's UTC.
-                target_timestamp = best_csv_match['utc_dt'].timestamp()
+                target_timestamp = best_csv_match["utc_dt"].timestamp()
                 try:
                     os.utime(filepath, (target_timestamp, target_timestamp))
                     timestamps_updated += 1
@@ -137,7 +145,9 @@ def main():
                     print(f"Failed to update timestamp for {filename}: {e}")
             else:
                 if local_time_from_name:
-                    print(f"No close CSV match found for {filename} (parsed time: {local_time_from_name})")
+                    print(
+                        f"No close CSV match found for {filename} (parsed time: {local_time_from_name})"
+                    )
                 else:
                     print(f"Could not parse time from filename: {filename}")
 
@@ -146,12 +156,14 @@ def main():
             if drive_key in drive_lookup:
                 matched_drive.append(drive_lookup[drive_key])
             else:
-                unmatched_drive.append({
-                    "Name": filename,
-                    "Size": filesize,
-                    "LocalPath": str(filepath),
-                    "MatchedCSV": best_csv_match is not None
-                })
+                unmatched_drive.append(
+                    {
+                        "Name": filename,
+                        "Size": filesize,
+                        "LocalPath": str(filepath),
+                        "MatchedCSV": best_csv_match is not None,
+                    }
+                )
 
     print(f"Processed {files_processed} local files.")
     print(f"Updated timestamps for {timestamps_updated} files.")
@@ -160,13 +172,14 @@ def main():
     print(f"Matched in Drive: {len(matched_drive)}")
     print(f"Unmatched in Drive: {len(unmatched_drive)}")
 
-    with open(MATCHED_OUTPUT, 'w', encoding='utf-8') as f:
+    with open(MATCHED_OUTPUT, "w", encoding="utf-8") as f:
         json.dump(matched_drive, f, indent=2)
 
-    with open(UNMATCHED_OUTPUT, 'w', encoding='utf-8') as f:
+    with open(UNMATCHED_OUTPUT, "w", encoding="utf-8") as f:
         json.dump(unmatched_drive, f, indent=2)
 
     print("Done!")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

@@ -7,13 +7,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from src.logger import log
 
+
 def parse_filename_time(filename):
     """
     Optional helper to parse a time signature from filename.
     Useful for verification/logging.
     """
     # Look for typical YYYYMMDD_HHMMSS
-    pattern = re.compile(r'((?:19|20)\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})')
+    pattern = re.compile(
+        r"((?:19|20)\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})"
+    )
     match = pattern.search(filename)
     if match:
         year, month, day, hour, minute, second = map(int, match.groups())
@@ -23,6 +26,7 @@ def parse_filename_time(filename):
             pass
     return None
 
+
 def find_matching_media(json_path, media_files):
     """
     Matches a companion JSON file to its corresponding media file in the same directory.
@@ -30,11 +34,13 @@ def find_matching_media(json_path, media_files):
     """
     json_name = json_path.name
     # Clean up multiple dots before .json extension
-    json_name = re.sub(r'\.+json$', '.json', json_name, flags=re.IGNORECASE)
+    json_name = re.sub(r"\.+json$", ".json", json_name, flags=re.IGNORECASE)
     # Preprocess supplemental metadata files to resolve to their standard json name form
     # e.g., "photo.jpg.supplemental-metadata.json" -> "photo.jpg.json"
     # or "photo.jpg.supp.json" -> "photo.jpg.json"
-    json_name = re.sub(r'\.(sup[a-z-]*)\.json$', '.json', json_name, flags=re.IGNORECASE)
+    json_name = re.sub(
+        r"\.(sup[a-z-]*)\.json$", ".json", json_name, flags=re.IGNORECASE
+    )
 
     # Strip '.json' to get the base media candidate name
     json_base = json_name[:-5]
@@ -51,7 +57,7 @@ def find_matching_media(json_path, media_files):
 
     # 3. Suffix shifting / Duplicate brackets
     # e.g., JSON: "photo.jpg(1).json" -> Media: "photo(1).jpg"
-    match = re.match(r'^(.+)\.([a-zA-Z0-9]+)\((\d+)\)\.json$', json_name, re.IGNORECASE)
+    match = re.match(r"^(.+)\.([a-zA-Z0-9]+)\((\d+)\)\.json$", json_name, re.IGNORECASE)
     if match:
         base_part, ext_part, num_part = match.groups()
         cand = f"{base_part}({num_part}).{ext_part}"
@@ -63,43 +69,66 @@ def find_matching_media(json_path, media_files):
     # Google truncates long filenames in the JSON name (usually at ~47-51 chars total).
     # e.g. JSON: "really_long_name_truncated_to_somethin.jpg.json"
     # Media: "really_long_name_truncated_to_something.jpg"
-    if '.' in json_base:
-        json_base_no_ext, json_ext = json_base.rsplit('.', 1)
-        known_exts = {'jpg', 'jpeg', 'png', 'heic', 'webp', 'mp4', 'mov', 'gif', '3gp', 'm4v', 'avi', 'mp', 'jp'}
+    if "." in json_base:
+        json_base_no_ext, json_ext = json_base.rsplit(".", 1)
+        known_exts = {
+            "jpg",
+            "jpeg",
+            "png",
+            "heic",
+            "webp",
+            "mp4",
+            "mov",
+            "gif",
+            "3gp",
+            "m4v",
+            "avi",
+            "mp",
+            "jp",
+        }
         if json_ext.lower() in known_exts:
             for f in media_files:
-                if '.' in f:
-                    f_base_no_ext, f_ext = f.rsplit('.', 1)
+                if "." in f:
+                    f_base_no_ext, f_ext = f.rsplit(".", 1)
                     # Check if extensions match or are truncated/started extensions (e.g. .mp -> .mp4)
-                    if f_ext.lower().startswith(json_ext.lower()) or json_ext.lower().startswith(f_ext.lower()):
+                    if f_ext.lower().startswith(
+                        json_ext.lower()
+                    ) or json_ext.lower().startswith(f_ext.lower()):
                         # Match base prefix. Check if shorter base is a prefix of longer base.
                         min_len = min(len(json_base_no_ext), len(f_base_no_ext))
-                        if min_len >= 15: # Safeguard against matching generic short names
+                        if (
+                            min_len >= 15
+                        ):  # Safeguard against matching generic short names
                             if json_base_no_ext[:min_len] == f_base_no_ext[:min_len]:
                                 return f
         else:
             # The dot was not for an extension (e.g. package name "com.miui.ga"), treat as no extension
             for f in media_files:
-                if '.' in f:
-                    f_base, _ = f.rsplit('.', 1)
+                if "." in f:
+                    f_base, _ = f.rsplit(".", 1)
                     f_base_lower = f_base.lower()
                     if f_base_lower == json_base_lower:
                         return f
-                    if len(json_base_lower) >= 15 and f_base_lower.startswith(json_base_lower):
+                    if len(json_base_lower) >= 15 and f_base_lower.startswith(
+                        json_base_lower
+                    ):
                         return f
     else:
         # No extension in json_base (e.g. "photo.json" matching "photo.jpg" or truncated name like "00100sPORTRAIT_00100_BURST20220301140511058_CO.json" -> "00100sPORTRAIT_00100_BURST20220301140511058_COVER.jpg")
         for f in media_files:
-            if '.' in f:
-                f_base, _ = f.rsplit('.', 1)
+            if "." in f:
+                f_base, _ = f.rsplit(".", 1)
                 f_base_lower = f_base.lower()
                 if f_base_lower == json_base_lower:
                     return f
                 # Prefix matching for truncated filenames with no extension in the JSON base
-                if len(json_base_lower) >= 15 and f_base_lower.startswith(json_base_lower):
+                if len(json_base_lower) >= 15 and f_base_lower.startswith(
+                    json_base_lower
+                ):
                     return f
 
     return None
+
 
 def main(takeout_dir):
     log.info("=== Starting Google Takeout Metadata Merger ===")
@@ -111,9 +140,13 @@ def main(takeout_dir):
     # Check for exiftool dependency
     exiftool_installed = shutil.which("exiftool") is not None
     if exiftool_installed:
-        log.info("Exiftool detected. Full EXIF/GPS metadata will be embedded into media.")
+        log.info(
+            "Exiftool detected. Full EXIF/GPS metadata will be embedded into media."
+        )
     else:
-        log.warning("Warning: exiftool is not installed. Filesystem modification dates will be updated, but EXIF metadata/GPS tags will be skipped.")
+        log.warning(
+            "Warning: exiftool is not installed. Filesystem modification dates will be updated, but EXIF metadata/GPS tags will be skipped."
+        )
         log.warning("To fix this, install exiftool: 'brew install exiftool'")
 
     matched_count = 0
@@ -123,7 +156,7 @@ def main(takeout_dir):
     matched_records = []
     unmatched_records = []
     exif_updates = []
-    filesystem_updates = [] # Tuple of (filepath, timestamp)
+    filesystem_updates = []  # Tuple of (filepath, timestamp)
 
     # Cache directories files to optimize traversal
     log.info("Crawling directory structure...")
@@ -132,9 +165,9 @@ def main(takeout_dir):
         json_files = []
         media_files = []
         for f in files:
-            if f.startswith('.'):
+            if f.startswith("."):
                 continue
-            if f.endswith('.json'):
+            if f.endswith(".json"):
                 json_files.append(f)
             else:
                 media_files.append(f)
@@ -146,21 +179,21 @@ def main(takeout_dir):
 
         for json_file in json_files:
             json_path = root_path / json_file
-            
+
             # Skip root configuration JSONs (e.g. metadata.json at Takeout root)
-            if json_file == 'metadata.json':
+            if json_file == "metadata.json":
                 continue
 
             # Load JSON content to check if it's a media companion
             try:
-                with open(json_path, 'r', encoding='utf-8') as f:
+                with open(json_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
             except Exception as e:
                 log.debug(f"Skipping unreadable JSON {json_path}: {e}")
                 continue
 
             # Check if it has photoTakenTime signature
-            if 'photoTakenTime' not in data and 'creationTime' not in data:
+            if "photoTakenTime" not in data and "creationTime" not in data:
                 skipped_json_count += 1
                 continue
 
@@ -168,18 +201,20 @@ def main(takeout_dir):
             matched_media_name = find_matching_media(json_path, media_files)
             if not matched_media_name:
                 unmatched_count += 1
-                unmatched_records.append({
-                    "json_path": str(json_path),
-                    "reason": "No matching media file found in same folder"
-                })
+                unmatched_records.append(
+                    {
+                        "json_path": str(json_path),
+                        "reason": "No matching media file found in same folder",
+                    }
+                )
                 continue
 
             media_path = root_path / matched_media_name
             matched_count += 1
 
             # Extract timestamp
-            time_section = data.get('photoTakenTime') or data.get('creationTime') or {}
-            ts_str = time_section.get('timestamp', '0')
+            time_section = data.get("photoTakenTime") or data.get("creationTime") or {}
+            ts_str = time_section.get("timestamp", "0")
             try:
                 ts = float(ts_str)
             except ValueError:
@@ -191,16 +226,16 @@ def main(takeout_dir):
 
             # Convert to UTC string for EXIF format
             dt = datetime.fromtimestamp(ts, tz=timezone.utc)
-            formatted_time = dt.strftime('%Y:%m:%d %H:%M:%S+00:00')
+            formatted_time = dt.strftime("%Y:%m:%d %H:%M:%S+00:00")
 
             # Extract description
-            description = data.get('description', '').strip()
+            description = data.get("description", "").strip()
 
             # Extract GPS coordinates
-            geo = data.get('geoData') or data.get('geoDataExif') or {}
-            lat = float(geo.get('latitude', 0.0))
-            lon = float(geo.get('longitude', 0.0))
-            alt = float(geo.get('altitude', 0.0))
+            geo = data.get("geoData") or data.get("geoDataExif") or {}
+            lat = float(geo.get("latitude", 0.0))
+            lon = float(geo.get("longitude", 0.0))
+            alt = float(geo.get("altitude", 0.0))
 
             # Store filesystem update details
             filesystem_updates.append((media_path, ts))
@@ -210,7 +245,7 @@ def main(takeout_dir):
                 "SourceFile": str(media_path.absolute()),
                 "DateTimeOriginal": formatted_time,
                 "CreateDate": formatted_time,
-                "ModifyDate": formatted_time
+                "ModifyDate": formatted_time,
             }
             if lat != 0.0 or lon != 0.0:
                 exif_entry["GPSLatitude"] = lat
@@ -221,30 +256,36 @@ def main(takeout_dir):
                 exif_entry["UserComment"] = description
 
             exif_updates.append(exif_entry)
-            matched_records.append({
-                "media_path": str(media_path),
-                "json_path": str(json_path),
-                "timestamp": ts,
-                "date": dt.isoformat(),
-                "gps": {"lat": lat, "lon": lon} if (lat != 0.0 or lon != 0.0) else None
-            })
+            matched_records.append(
+                {
+                    "media_path": str(media_path),
+                    "json_path": str(json_path),
+                    "timestamp": ts,
+                    "date": dt.isoformat(),
+                    "gps": (
+                        {"lat": lat, "lon": lon} if (lat != 0.0 or lon != 0.0) else None
+                    ),
+                }
+            )
 
-    log.info(f"Scan complete. Found {matched_count} matched files, {unmatched_count} unmatched JSONs.")
+    log.info(
+        f"Scan complete. Found {matched_count} matched files, {unmatched_count} unmatched JSONs."
+    )
 
     # 1. Update EXIF tags via exiftool batch command
     if exiftool_installed and exif_updates:
         log.info("Batch updating EXIF metadata using exiftool...")
-        
+
         # Save temp payloads under data/json/ (create dir if not exists)
         os.makedirs("data/json", exist_ok=True)
         temp_json_path = "data/json/takeout_exif_temp.json"
         temp_files_path = "data/json/takeout_files_temp.txt"
 
         try:
-            with open(temp_json_path, 'w', encoding='utf-8') as f:
+            with open(temp_json_path, "w", encoding="utf-8") as f:
                 json.dump(exif_updates, f, indent=2)
 
-            with open(temp_files_path, 'w', encoding='utf-8') as f:
+            with open(temp_files_path, "w", encoding="utf-8") as f:
                 for entry in exif_updates:
                     f.write(entry["SourceFile"] + "\n")
 
@@ -254,9 +295,12 @@ def main(takeout_dir):
                 "-overwrite_original",
                 "-m",
                 f"-json={temp_json_path}",
-                "-@", temp_files_path
+                "-@",
+                temp_files_path,
             ]
-            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            res = subprocess.run(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
             if res.returncode == 0:
                 log.info("EXIF metadata successfully updated for matched files.")
             else:
@@ -287,10 +331,10 @@ def main(takeout_dir):
     match_log_path = "data/json/takeout_match.json"
     unmatched_log_path = "data/json/takeout_unmatched.json"
 
-    with open(match_log_path, 'w', encoding='utf-8') as f:
+    with open(match_log_path, "w", encoding="utf-8") as f:
         json.dump(matched_records, f, indent=2)
 
-    with open(unmatched_log_path, 'w', encoding='utf-8') as f:
+    with open(unmatched_log_path, "w", encoding="utf-8") as f:
         json.dump(unmatched_records, f, indent=2)
 
     log.info(f"Operation summary logged:")

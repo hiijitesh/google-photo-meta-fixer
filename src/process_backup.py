@@ -56,7 +56,7 @@ def parse_csv_time(iso_str, offset_ms):
         return None, None
 
 
-def main():
+def main(csv_paths=None, directories=None):
     # 1. Load drive index to check if files exist in drive
     print("Loading drive_index.json...")
     drive_files = set()
@@ -73,7 +73,8 @@ def main():
 
     # 2. Parse all CSVs
     csv_entries = []
-    for path in CSV_PATHS:
+    actual_csv_paths = csv_paths if csv_paths is not None else CSV_PATHS
+    for path in actual_csv_paths:
         print(f"Loading {path}...")
         if not os.path.exists(path):
             print(f"Warning: {path} not found.")
@@ -97,7 +98,8 @@ def main():
     files_processed = 0
     updated_timestamps = 0
 
-    for directory in DIRECTORIES:
+    actual_directories = directories if directories is not None else DIRECTORIES
+    for directory in actual_directories:
         if not os.path.isdir(directory):
             print(f"Warning: Directory {directory} not found.")
             continue

@@ -90,8 +90,19 @@ def main():
         "process", help="Process local photos based on CSV metadata"
     )
     process_sub = process_parser.add_subparsers(dest="subcommand", required=True)
-    process_sub.add_parser("backup", help="Process backup photos")
-    process_sub.add_parser("trash", help="Process trashed photos")
+
+    backup_parser = process_sub.add_parser("backup", help="Process backup photos")
+    backup_parser.add_argument("--csv", nargs="*", help="Optional custom CSV path(s)")
+    backup_parser.add_argument(
+        "--dir", nargs="*", help="Optional custom directory path(s)"
+    )
+
+    trash_parser = process_sub.add_parser("trash", help="Process trashed photos")
+    trash_parser.add_argument("--csv", help="Optional custom CSV path")
+    trash_parser.add_argument(
+        "--dir", nargs="*", help="Optional custom directory path(s)"
+    )
+
     takeout_parser = process_sub.add_parser(
         "takeout", help="Process Google Takeout directories merging JSON metadata"
     )
@@ -125,11 +136,11 @@ def main():
         if args.subcommand == "backup":
             import src.process_backup as bp
 
-            bp.main()
+            bp.main(csv_paths=args.csv, directories=args.dir)
         elif args.subcommand == "trash":
             import src.process_trash as tp
 
-            tp.main()
+            tp.main(csv_path=args.csv, directories=args.dir)
         elif args.subcommand == "takeout":
             import src.process_takeout as pt
 

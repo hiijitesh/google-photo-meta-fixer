@@ -29,6 +29,13 @@ def find_matching_media(json_path, media_files):
     Handles Google Takeout quirks including exact matches, duplicate brackets, and truncated names.
     """
     json_name = json_path.name
+    # Clean up multiple dots before .json extension
+    json_name = re.sub(r'\.+json$', '.json', json_name, flags=re.IGNORECASE)
+    # Preprocess supplemental metadata files to resolve to their standard json name form
+    # e.g., "photo.jpg.supplemental-metadata.json" -> "photo.jpg.json"
+    # or "photo.jpg.supp.json" -> "photo.jpg.json"
+    json_name = re.sub(r'\.(sup[a-z-]*)\.json$', '.json', json_name, flags=re.IGNORECASE)
+
     # Strip '.json' to get the base media candidate name
     json_base = json_name[:-5]
     json_base_lower = json_base.lower()
@@ -58,22 +65,38 @@ def find_matching_media(json_path, media_files):
     # Media: "really_long_name_truncated_to_something.jpg"
     if '.' in json_base:
         json_base_no_ext, json_ext = json_base.rsplit('.', 1)
-        for f in media_files:
-            if '.' in f:
-                f_base_no_ext, f_ext = f.rsplit('.', 1)
-                # Check if extensions match or are truncated/started extensions (e.g. .mp -> .mp4)
-                if f_ext.lower().startswith(json_ext.lower()) or json_ext.lower().startswith(f_ext.lower()):
-                    # Match base prefix. Check if shorter base is a prefix of longer base.
-                    min_len = min(len(json_base_no_ext), len(f_base_no_ext))
-                    if min_len >= 15: # Safeguard against matching generic short names
-                        if json_base_no_ext[:min_len] == f_base_no_ext[:min_len]:
-                            return f
+        known_exts = {'jpg', 'jpeg', 'png', 'heic', 'webp', 'mp4', 'mov', 'gif', '3gp', 'm4v', 'avi', 'mp', 'jp'}
+        if json_ext.lower() in known_exts:
+            for f in media_files:
+                if '.' in f:
+                    f_base_no_ext, f_ext = f.rsplit('.', 1)
+                    # Check if extensions match or are truncated/started extensions (e.g. .mp -> .mp4)
+                    if f_ext.lower().startswith(json_ext.lower()) or json_ext.lower().startswith(f_ext.lower()):
+                        # Match base prefix. Check if shorter base is a prefix of longer base.
+                        min_len = min(len(json_base_no_ext), len(f_base_no_ext))
+                        if min_len >= 15: # Safeguard against matching generic short names
+                            if json_base_no_ext[:min_len] == f_base_no_ext[:min_len]:
+                                return f
+        else:
+            # The dot was not for an extension (e.g. package name "com.miui.ga"), treat as no extension
+            for f in media_files:
+                if '.' in f:
+                    f_base, _ = f.rsplit('.', 1)
+                    f_base_lower = f_base.lower()
+                    if f_base_lower == json_base_lower:
+                        return f
+                    if len(json_base_lower) >= 15 and f_base_lower.startswith(json_base_lower):
+                        return f
     else:
-        # No extension in json_base (e.g. "photo.json" matching "photo.jpg")
+        # No extension in json_base (e.g. "photo.json" matching "photo.jpg" or truncated name like "00100sPORTRAIT_00100_BURST20220301140511058_CO.json" -> "00100sPORTRAIT_00100_BURST20220301140511058_COVER.jpg")
         for f in media_files:
             if '.' in f:
                 f_base, _ = f.rsplit('.', 1)
-                if f_base.lower() == json_base_lower:
+                f_base_lower = f_base.lower()
+                if f_base_lower == json_base_lower:
+                    return f
+                # Prefix matching for truncated filenames with no extension in the JSON base
+                if len(json_base_lower) >= 15 and f_base_lower.startswith(json_base_lower):
                     return f
 
     return None
@@ -229,6 +252,7 @@ def main(takeout_dir):
             cmd = [
                 "exiftool",
                 "-overwrite_original",
+                "-m",
                 f"-json={temp_json_path}",
                 "-@", temp_files_path
             ]

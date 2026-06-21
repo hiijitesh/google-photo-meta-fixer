@@ -2,7 +2,7 @@ import json
 import os
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from src.sync import run_rclone_commands
+from src.sync import run_rclone_commands, prompt_and_refresh_index
 from src.logger import log
 
 
@@ -24,6 +24,7 @@ def get_local_files(directory):
 
 def cmd_metadata_fix_drive(remote_name):
     log.info("=== Google Drive Metadata Fix ===")
+    prompt_and_refresh_index(remote_name, backup_only=True)
     drive_index_path = "data/json/drive_index_photo_backUp.json"
     if not os.path.exists(drive_index_path):
         log.error(f"Error: {drive_index_path} not found.")

@@ -29,12 +29,12 @@ The project has been refactored from a collection of single-purpose scripts into
 
 ---
 
-## 🔧 CLI CLI Entry Point (`cleaner.py`)
+## 🔧 CLI Entry Point (`cleaner.py`)
 
 All operations are run via `cleaner.py` using positional commands:
 
 ### 1. File Synchronization (`sync`)
-Synchronizes files within Google Drive (cloud-to-cloud) based on GPTK export CSVs.
+Handles synchronizing files inside Google Drive (cloud-to-cloud) or uploading missing local folders.
 
 ```bash
 # Sync original-quality backup photos into year-wise folders
@@ -42,10 +42,18 @@ python3 cleaner.py sync backup --remote jiteshece:
 
 # Sync recovered Google Photos trash files into organized subfolders
 python3 cleaner.py sync trash --remote jiteshece:
+
+# Compare space-consuming CSV metadata against Google Drive index (cloud-to-cloud sync)
+# This finds files present on Drive but not in photos_backUp, and copies them to the backup directory
+python3 cleaner.py sync consuming --csv "o consuming album metadata.csv" --remote jiteshece:
+
+# Compare a local folder (e.g. GPH OP) against Drive index and upload missing files to a destination folder on Drive
+# (Prevents duplicate files and folder structures)
+python3 cleaner.py sync upload-local --dir "data/GPH OP/ALL_PHOTOS" --dest "O Consuming" --remote jiteshece:
 ```
 
 ### 2. Metadata & Timestamps (`metadata`)
-Identifies and fixes modification time (`mtime`) discrepancies between local photo files and their Google Drive counterparts.
+Identifies, verifies, and fixes timestamp discrepancies between local files, Google Drive, and CSV database reports.
 
 ```bash
 # Compare local and Drive indices, and execute 'rclone touch' directly on Drive to fix mismatched times
@@ -53,6 +61,9 @@ python3 cleaner.py metadata fix-drive --remote jiteshece:
 
 # Fix local photo modification timestamps
 python3 cleaner.py metadata fix-local
+
+# Verify that local photo timestamps (EXIF & modify date) match dates in a Google Photos CSV file
+python3 cleaner.py metadata verify-csv --csv "o consuming album metadata.csv" --dir "data/GPH OP/ALL_PHOTOS"
 ```
 
 ### 3. CSV Processing & Local Organizing (`process`)

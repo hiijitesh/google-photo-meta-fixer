@@ -19,6 +19,12 @@ Run the command on your unzipped Google Takeout folder. Remember to **wrap the d
 python3 cleaner.py process takeout --dir "/Users/hiijitesh/Downloads/Takeout/Google Photos"
 ```
 
+### 3. Verify the Merger
+You can run the built-in verification tool at any time to audit the updated files against the match log and confirm that everything matches perfectly (both in filesystem timestamps and EXIF headers):
+```bash
+python3 cleaner.py metadata verify-takeout
+```
+
 ---
 
 ## 🛠️ Features & Quirks Handled Automatically

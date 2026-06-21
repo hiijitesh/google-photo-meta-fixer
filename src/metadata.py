@@ -246,14 +246,18 @@ def cmd_metadata_verify_takeout():
     mtime_failures = 0
     exif_failures = 0
     mismatches = []
+    total = len(records)
 
-    for r in records:
+    for idx, r in enumerate(records, start=1):
         media_path = r.get("media_path")
         expected_ts = r.get("timestamp")
         if not media_path or expected_ts is None:
             continue
 
+        filename = os.path.basename(media_path)
+
         if not os.path.exists(media_path):
+            log.warning(f"Auditing [{idx}/{total}] {filename}... ❌ Failed (File does not exist on disk)")
             mismatches.append({
                 "path": media_path,
                 "reason": "File does not exist on disk"
@@ -299,13 +303,18 @@ def cmd_metadata_verify_takeout():
                 exif_failures += 1
                 reasons.append("EXIF header missing or mismatch")
 
+            reasons_str = ", ".join(reasons)
+            log.warning(f"Auditing [{idx}/{total}] {filename}... ❌ Failed ({reasons_str})")
+
             mismatches.append({
                 "path": media_path,
-                "reason": ", ".join(reasons),
+                "reason": reasons_str,
                 "expected_time": expected_dto,
                 "actual_mtime": datetime.fromtimestamp(mtime, tz=timezone.utc).strftime('%Y:%m:%d %H:%M:%S'),
                 "actual_exif": dto_val if dto_val else "None"
             })
+        else:
+            log.info(f"Auditing [{idx}/{total}] {filename}... ✅ Passed")
 
     log.info(f"Verification Summary:")
     log.info(f"  Total Checked:        {len(records)}")

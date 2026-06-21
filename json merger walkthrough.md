@@ -1,54 +1,38 @@
-# Walkthrough: Google Takeout Metadata Merger Implementation
+# Guide: Google Takeout Metadata Merger
 
-I have successfully added a new subcommand, `python3 cleaner.py process takeout --dir <takeout_dir>`, to merge Google Takeout companion JSON files back into their respective images and videos.
-
-## Changes Made
-
-### 1. Created Takeout Processing Logic
-* **File:** [process_takeout.py](file:///Users/hiijitesh/Documents/google-photos-cleaner/src/process_takeout.py)
-* **What it does:**
-  - Walks recursively through the target directory to locate all companion `.json` files.
-  - Extracts the GMT/UTC timestamps, GPS coordinates (latitude, longitude, altitude), and descriptions from the JSON.
-  - Utilizes a robust matching algorithm to link JSONs with media files, resolving **filename truncation** and **duplicate suffix shifted naming** (e.g., matching `photo.jpg(1).json` with `photo(1).jpg`).
-  - Executes a single batch `exiftool` command to write EXIF headers efficiently (minimizing process startup overhead).
-  - Updates filesystem modification times (`os.utime`).
-  - Logs match logs to `data/json/takeout_match.json` and unmatched records to `data/json/takeout_unmatched.json`.
-
-### 2. Integrated into CLI Entrypoint
-* **File:** [cleaner.py](file:///Users/hiijitesh/Documents/google-photos-cleaner/cleaner.py)
-* **What it does:** Registered the `takeout` subcommand under the `process` parser and routed its arguments to `src/process_takeout.py`.
-
-### 3. Documented in Developer Guidelines
-* **File:** [GEMINI.md](file:///Users/hiijitesh/Documents/google-photos-cleaner/GEMINI.md)
-* **What it does:** Added a **Processing Subcommands** quick command reference section documenting the usage.
+This subcommand recursively crawls a Google Takeout export directory, matches companion JSON metadata files to their respective photos/videos, and writes the photo taken times, descriptions, and GPS tags back into the files.
 
 ---
 
-## Verification & Testing
+## ⚡ Quick Start
 
-I set up a mock Google Takeout directory with real photos and simulated JSON metadata files representing different edge cases:
-1. **Exact match:** `Snapchat-308590700.jpg` with `Snapchat-308590700.jpg.json`
-2. **Bracket Suffix Shift:** `photo_duplicate(1).jpg` with `photo_duplicate.jpg(1).json`
-3. **Google Name Truncation:** `extremely_long_filename_that_google_photos_will_truncate_to_somethin.jpeg` with `extremely_long_filename_that_google_photos_will_truncate_to_som.jpeg.json`
-
-### Run Log Output:
+### 1. Install Exiftool (Required for EXIF/GPS tags)
+To write metadata directly inside photo and video files, make sure `exiftool` is installed on your machine:
+```bash
+brew install exiftool
 ```
-=== Starting Google Takeout Metadata Merger ===
-Exiftool detected. Full EXIF/GPS metadata will be embedded into media.
-Crawling directory structure...
-Scan complete. Found 3 matched files, 0 unmatched JSONs.
-Batch updating EXIF metadata using exiftool...
-EXIF metadata successfully updated for matched files.
-Updating local filesystem modification times (os.utime)...
-Filesystem timestamps updated for 3 files.
-Operation summary logged:
-  Matched index saved to data/json/takeout_match.json
-  Unmatched index saved to data/json/takeout_unmatched.json
-Done!
+*(If `exiftool` is not installed, the tool will fall back to correcting only the filesystem modified dates).*
+
+### 2. Run the Command
+Run the command on your unzipped Google Takeout folder. Remember to **wrap the directory path in double quotes** if it contains spaces:
+```bash
+python3 cleaner.py process takeout --dir "/Users/hiijitesh/Downloads/Takeout/Google Photos"
 ```
 
-### Exiftool Metadata Validation:
-All files were matched successfully, the filesystem modification dates were corrected, and the EXIF headers were correctly written:
-* **DateTimeOriginal** updated to expected date-times.
-* **GPS coordinates** (Latitude, Longitude) embedded.
-* **Description** injected into EXIF Description/UserComment fields.
+---
+
+## 🛠️ Features & Quirks Handled Automatically
+You don't need to rename or clean up anything beforehand. The script automatically handles:
+1. **Google Name Truncation:** Resolves cases where Google shortened a JSON name (e.g. matching `very_long_name_trun.jpg.json` with `very_long_name_truncated.jpg`).
+2. **Supplemental Metadata:** Matches `.supp.json` and `.supplemental-metadata.json` suffixes back to their original images.
+3. **Bracket Shift Duplicates:** Matches shifted numbers (e.g. matching `photo.jpg(1).json` with `photo(1).jpg`).
+4. **Double Dots:** Cleans up duplicate dots (e.g. matching `photo.jpg..json` with `photo.jpg`).
+5. **Android Package Formats:** Safely matches Android screenshots containing dots (e.g. `com.miui.gallery`).
+6. **UTC to Offset Handling:** Reads UTC timestamps from the JSON and properly translates them into Exif tags.
+
+---
+
+## 📋 Log Locations
+After execution, the script generates two index summaries in the `data/json/` directory:
+* **[takeout_match.json](file:///Users/hiijitesh/Documents/google-photos-cleaner/data/json/takeout_match.json):** A detailed list of all matched files, timestamps, and locations that were updated.
+* **[takeout_unmatched.json](file:///Users/hiijitesh/Documents/google-photos-cleaner/data/json/takeout_unmatched.json):** Any JSON files that could not be matched (will be empty `[]` on a perfect run).

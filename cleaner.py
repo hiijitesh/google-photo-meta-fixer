@@ -15,7 +15,32 @@ from src.metadata import (
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Google Photos Cleaner CLI")
+    parser = argparse.ArgumentParser(
+        description="Google Photos Cleaner CLI - Manage Google Photos storage and metadata",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Available subcommands and their usage:
+
+1. Sync (Manage cloud-to-cloud sync & uploads)
+   - gp-cleaner sync backup [--remote REMOTE]
+   - gp-cleaner sync trash [--remote REMOTE]
+   - gp-cleaner sync consuming --csv CSV [--remote REMOTE]
+   - gp-cleaner sync upload-local --dir DIR --dest DEST [--remote REMOTE]
+
+2. Metadata (Audit & fix timestamps)
+   - gp-cleaner metadata fix-drive [--remote REMOTE]
+   - gp-cleaner metadata fix-local
+   - gp-cleaner metadata verify-csv --csv CSV --dir DIR
+   - gp-cleaner metadata verify-takeout
+
+3. Process (Write metadata & filesystem times)
+   - gp-cleaner process backup [--csv [CSV ...]] [--dir [DIR ...]]
+   - gp-cleaner process trash [--csv CSV] [--dir [DIR ...]]
+   - gp-cleaner process takeout --dir DIR
+
+Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' for details on specific options.
+""",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # Sync commands

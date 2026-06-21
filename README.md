@@ -7,6 +7,23 @@ A unified python-based toolkit to process, sync, and fix timestamps of Google Ph
 
 ---
 
+## ⚙️ Prerequisites
+
+To use this toolkit, you must have `rclone` installed and configured on your system:
+
+1. **Install rclone:** Follow the [rclone installation instructions](https://rclone.org/install/).
+2. **Configure your Google Drive remote:** Set up your Google Drive connection by running:
+   ```bash
+   rclone config
+   ```
+   Follow the step-by-step prompts to create a new remote (e.g. `jiteshece:`). Refer to the official [rclone config command guide](https://rclone.org/commands/rclone_config/) for more details.
+3. **Verify configuration:** Make sure you can list your drive contents:
+   ```bash
+   rclone lsd jiteshece:
+   ```
+
+---
+
 ## 🏗️ Project Architecture & Code Structure
 
 The project has been refactored from a collection of single-purpose scripts into a consolidated Python application with a unified CLI entry point.

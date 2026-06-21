@@ -230,16 +230,20 @@ def cmd_sync_upload_local(local_dir, remote_name, dest_subfolder):
         log.error("Error: drive_index_photo_backUp.json not found.")
         return
 
-    # 1. Scan local files
+    # 1. Scan local files and compute relative paths
     local_files = {}
+    local_path_obj = Path(local_dir)
     for root, dirs, files in os.walk(local_dir):
         for file in files:
             if file == '.DS_Store':
                 continue
-            local_path = os.path.join(root, file)
+            full_path = os.path.join(root, file)
+            # Compute relative path from local_dir
+            rel_path = str(Path(full_path).relative_to(local_path_obj))
             local_files[file.lower()] = {
                 'name': file,
-                'path': local_path
+                'rel_path': rel_path,
+                'full_path': full_path
             }
             
     log.info(f"Found {len(local_files)} local files to check.")
@@ -257,31 +261,51 @@ def cmd_sync_upload_local(local_dir, remote_name, dest_subfolder):
                 
     log.info(f"Found {len(drive_files)} files in Google Drive photos_backUp index.")
     
-    # 3. Compare and build upload commands
-    if not remote_name.endswith(":"):
-        remote_name += ":"
-
-    upload_commands = []
-    missing_files = []
-    
+    # 3. Filter missing files
+    missing_rel_paths = []
     for filename_lower, info in local_files.items():
         if filename_lower not in drive_files:
-            missing_files.append(info['name'])
-            target_path = f"photos_backUp/{dest_subfolder}/{info['name']}"
-            cmd = f'rclone copyto "{info["path"]}" "{remote_name}{target_path}"'
-            upload_commands.append(cmd)
+            missing_rel_paths.append(info['rel_path'])
             
-    log.info(f"Missing files from Google Drive: {len(missing_files)}")
-    if missing_files:
+    log.info(f"Missing files from Google Drive: {len(missing_rel_paths)}")
+    if missing_rel_paths:
         log.info("First 10 missing files:")
-        for name in missing_files[:10]:
-            log.info(f"  - {name}")
+        for rel_path in missing_rel_paths[:10]:
+            log.info(f"  - {rel_path}")
             
-    if upload_commands:
-        log.info(f"Created {len(upload_commands)} upload commands.")
-        if input("Run upload commands now? (y/n): ").strip().lower() == 'y':
-            run_rclone_commands(upload_commands)
-            log.info("Upload complete!")
+    if missing_rel_paths:
+        # Write files manifest
+        manifest_path = "logs/upload_manifest.txt"
+        os.makedirs("logs", exist_ok=True)
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            for rel_path in sorted(missing_rel_paths):
+                f.write(f"{rel_path}\n")
+        
+        # Build destination and single optimized rclone command
+        if not remote_name.endswith(":"):
+            remote_name += ":"
+        target_dir = f"{remote_name}photos_backUp/{dest_subfolder}"
+        
+        # We use --transfers 10 for parallel thread uploads and --drive-chunk-size 64M for Google Drive performance
+        rclone_cmd = [
+            "rclone", "copy",
+            "--files-from", manifest_path,
+            "--transfers", "10",
+            "--checkers", "16",
+            "--drive-chunk-size", "64M",
+            local_dir,
+            target_dir
+        ]
+        
+        log.info(f"Prepared manifest with {len(missing_rel_paths)} entries at {manifest_path}")
+        log.info(f"Running rclone copy with 10 transfer threads...")
+        
+        if input("Run multi-threaded upload now? (y/n): ").strip().lower() == 'y':
+            log_file_path = "logs/rclone_execution.log"
+            with open(log_file_path, "a", encoding="utf-8") as log_file:
+                # Run rclone directly in a single process
+                subprocess.run(rclone_cmd, stdout=log_file, stderr=log_file, check=True)
+            log.info("Upload complete! (Logs saved to logs/rclone_execution.log)")
     else:
         log.info("All files are already present on Google Drive.")
 

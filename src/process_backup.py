@@ -116,33 +116,67 @@ def main(csv_paths=None, directories=None):
             filename = filepath.name
             filesize = filepath.stat().st_size
 
+            # Define filename match helper
+            def names_match(dir_name, csv_name):
+                if not dir_name or not csv_name:
+                    return False
+                if dir_name == csv_name:
+                    return True
+                dir_base, _ = os.path.splitext(dir_name)
+                csv_base, _ = os.path.splitext(csv_name)
+                dir_base = dir_base.replace("-edited", "")
+                csv_base = csv_base.replace("-edited", "")
+                if dir_base == csv_base:
+                    return True
+                if len(dir_base) >= 20 and len(csv_base) >= 20:
+                    if dir_base.startswith(csv_base) or csv_base.startswith(dir_base):
+                        return True
+                return False
+
             # Match to CSV timestamp
-            local_time_from_name = parse_filename_time(filename)
             best_csv_match = None
+            local_time_from_name = None
 
-            if local_time_from_name and csv_entries:
-                # Find closest CSV entry checking both local and UTC times
-                closest_entry = None
-                min_diff = float("inf")
+            # 1) Try exact filename matching
+            for entry in csv_entries:
+                if entry["row"].get("fileName") == filename:
+                    best_csv_match = entry
+                    break
 
+            # 2) Fallback to fuzzy filename matching
+            if not best_csv_match:
                 for entry in csv_entries:
-                    diff_local = abs(
-                        (entry["local_dt"] - local_time_from_name).total_seconds()
-                    )
-                    diff_utc = abs(
-                        (
-                            entry["utc_dt"].replace(tzinfo=None) - local_time_from_name
-                        ).total_seconds()
-                    )
+                    if names_match(filename, entry["row"].get("fileName", "")):
+                        best_csv_match = entry
+                        break
 
-                    best_diff = min(diff_local, diff_utc)
-                    if best_diff < min_diff:
-                        min_diff = best_diff
-                        closest_entry = entry
+            # 3) Fallback to parsed filename time
+            if not best_csv_match:
+                local_time_from_name = parse_filename_time(filename)
+                if local_time_from_name and csv_entries:
+                    # Find closest CSV entry checking both local and UTC times
+                    closest_entry = None
+                    min_diff = float("inf")
 
-                # If it's within a reasonable threshold (e.g. 2 hours) we consider it a match
-                if min_diff < 7200:
-                    best_csv_match = closest_entry
+                    for entry in csv_entries:
+                        diff_local = abs(
+                            (entry["local_dt"] - local_time_from_name).total_seconds()
+                        )
+                        diff_utc = abs(
+                            (
+                                entry["utc_dt"].replace(tzinfo=None)
+                                - local_time_from_name
+                            ).total_seconds()
+                        )
+
+                        best_diff = min(diff_local, diff_utc)
+                        if best_diff < min_diff:
+                            min_diff = best_diff
+                            closest_entry = entry
+
+                    # If it's within a reasonable threshold (e.g. 2 hours) we consider it a match
+                    if min_diff < 7200:
+                        best_csv_match = closest_entry
 
             if best_csv_match:
                 # Get the true UTC timestamp from the CSV

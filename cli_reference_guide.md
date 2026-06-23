@@ -161,16 +161,51 @@ Before executing any sync or cloud-metadata subcommand, the tool prompts you to 
 
 #### 🔹 `gp-cleaner metadata fix-drive`
 *   **Purpose:** Directly corrects mismatched remote file modification dates on Google Drive to align with local files using `rclone touch`. No payload is re-uploaded.
+*   **Workflow:**
+    1.  Prompts to refresh `drive_index_photo_backUp.json`.
+    2.  Scans both `data/photos/photos_backUp` and `data/photos/Trashed Photos-3-001` for local files.
+    3.  Compares each Drive file's `ModTime` with the corresponding local file's `mtime`.
+    4.  Generates `rclone touch --timestamp` commands for all files with a drift greater than 2 seconds.
+    5.  Prompts you to confirm before executing.
 *   **Syntax:**
     ```bash
     gp-cleaner metadata fix-drive [--remote REMOTE_NAME]
     ```
 
-#### 🔹 `gp-cleaner metadata verify-csv`
-*   **Purpose:** Checks local photo files against a CSV file to verify if local filesystem `mtime` and EXIF creation tags match.
+#### 🔹 `gp-cleaner metadata fix-local`
+*   **Purpose:** Reads a GPTK metadata CSV and writes the correct `takenAt` timestamps directly into each local photo's EXIF headers (`DateTimeOriginal`, `CreateDate`, `ModifyDate`) **and** updates its filesystem modification time (`mtime`). Use this after downloading files locally to ensure dates are accurate before re-uploading.
+*   **Workflow:**
+    1.  Reads all entries from the given CSV file.
+    2.  Walks the local `--dir` directory to find all media files.
+    3.  Matches each file to its CSV row by filename (with fuzzy `-edited` / truncation tolerance).
+    4.  Updates filesystem `mtime` via `os.utime` for all matched files.
+    5.  If `exiftool` is installed, batch-writes EXIF date tags for all matched files.
+    6.  Reports a summary of matched vs unmatched files.
 *   **Syntax:**
     ```bash
-    gp-cleaner metadata verify-csv --csv CSV_PATH --dir LOCAL_DIR
+    gp-cleaner metadata fix-local --csv CSV_PATH --dir LOCAL_DIR
+    ```
+*   **Example:**
+    ```bash
+    gp-cleaner metadata fix-local --csv "data/csv/T2-hiijitesh.csv" --dir "data/photos/GPH OP"
+    ```
+*   **Requirements:** `exiftool` must be installed for EXIF header writes (`brew install exiftool`). Filesystem timestamps are always updated regardless.
+
+#### 🔹 `gp-cleaner metadata verify-csv`
+*   **Purpose:** Checks local photo files against a CSV file to verify if local filesystem `mtime` and EXIF creation tags match the expected `takenAt` timestamps.
+*   **Options:**
+    | Flag | Description |
+    | :--- | :--- |
+    | `--csv CSV_PATH` | Path to the GPTK metadata CSV file. |
+    | `--dir LOCAL_DIR` | Directory containing photos to audit. |
+    | `--show-missing` | Print the full list of files missing from the directory **and** extra files not in the CSV. |
+*   **Syntax:**
+    ```bash
+    gp-cleaner metadata verify-csv --csv CSV_PATH --dir LOCAL_DIR [--show-missing]
+    ```
+*   **Example:**
+    ```bash
+    gp-cleaner metadata verify-csv --csv "data/csv/T2-hiijitesh.csv" --dir "data/photos/photos_backUp" --show-missing
     ```
 
 #### 🔹 `gp-cleaner metadata verify-takeout`

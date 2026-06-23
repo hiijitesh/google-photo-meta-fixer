@@ -209,8 +209,17 @@ def main(takeout_dir):
                 )
                 continue
 
-            media_path = root_path / matched_media_name
-            matched_count += 1
+            # Identify companion motion photo / live photo video files
+            media_names_to_update = [matched_media_name]
+            lower_name = matched_media_name.lower()
+            photo_exts = (".jpg", ".jpeg", ".heic", ".png", ".webp")
+            if lower_name.endswith(photo_exts):
+                stem = Path(matched_media_name).stem
+                # Check for companion video formats
+                for video_ext in (".mp4", ".MP4", ".mov", ".MOV"):
+                    video_name = f"{stem}{video_ext}"
+                    if video_name in media_files and video_name != matched_media_name:
+                        media_names_to_update.append(video_name)
 
             # Extract timestamp
             time_section = data.get("photoTakenTime") or data.get("creationTime") or {}
@@ -237,36 +246,42 @@ def main(takeout_dir):
             lon = float(geo.get("longitude", 0.0))
             alt = float(geo.get("altitude", 0.0))
 
-            # Store filesystem update details
-            filesystem_updates.append((media_path, ts))
+            for m_name in media_names_to_update:
+                media_path = root_path / m_name
+                matched_count += 1
 
-            # Build EXIF update payload
-            exif_entry: dict[str, str | float] = {
-                "SourceFile": str(media_path.absolute()),
-                "DateTimeOriginal": formatted_time,
-                "CreateDate": formatted_time,
-                "ModifyDate": formatted_time,
-            }
-            if lat != 0.0 or lon != 0.0:
-                exif_entry["GPSLatitude"] = lat
-                exif_entry["GPSLongitude"] = lon
-                exif_entry["GPSAltitude"] = alt
-            if description:
-                exif_entry["Description"] = description
-                exif_entry["UserComment"] = description
+                # Store filesystem update details
+                filesystem_updates.append((media_path, ts))
 
-            exif_updates.append(exif_entry)
-            matched_records.append(
-                {
-                    "media_path": str(media_path),
-                    "json_path": str(json_path),
-                    "timestamp": ts,
-                    "date": dt.isoformat(),
-                    "gps": (
-                        {"lat": lat, "lon": lon} if (lat != 0.0 or lon != 0.0) else None
-                    ),
+                # Build EXIF update payload
+                exif_entry: dict[str, str | float] = {
+                    "SourceFile": str(media_path.absolute()),
+                    "DateTimeOriginal": formatted_time,
+                    "CreateDate": formatted_time,
+                    "ModifyDate": formatted_time,
                 }
-            )
+                if lat != 0.0 or lon != 0.0:
+                    exif_entry["GPSLatitude"] = lat
+                    exif_entry["GPSLongitude"] = lon
+                    exif_entry["GPSAltitude"] = alt
+                if description:
+                    exif_entry["Description"] = description
+                    exif_entry["UserComment"] = description
+
+                exif_updates.append(exif_entry)
+                matched_records.append(
+                    {
+                        "media_path": str(media_path),
+                        "json_path": str(json_path),
+                        "timestamp": ts,
+                        "date": dt.isoformat(),
+                        "gps": (
+                            {"lat": lat, "lon": lon}
+                            if (lat != 0.0 or lon != 0.0)
+                            else None
+                        ),
+                    }
+                )
 
     log.info(
         f"Scan complete. Found {matched_count} matched files, {unmatched_count} unmatched JSONs."

@@ -31,6 +31,7 @@ To back up and clean up your Google Photos metadata, follow this standard sequen
 1. **Provide CSV Metadata:** Export your space-consuming photo/video metadata from your browser using the Google Photos Toolkit (GPTK) userscript as a CSV file.
 2. **Provide unzipped Google Takeout Folder:** Download your Google Takeout archive and extract it locally to a folder.
 3. **Configure Google Drive Remote & Target Folder:** Set up your `rclone` remote connection (e.g., `gdrive:`) and specify the target remote folder where the cloud-to-cloud copy and touch operations will execute.
+4. **Pixel Re-upload & Deletion Workflow (Free Storage Sync):** To safely clean up cloud storage and re-upload original files via Pixel phone, see the [Pixel Re-upload Guide](file:///Users/hiijitesh/Documents/google-photos-cleaner/docs/Pixel_Reupload_Guide.md).
 
 ---
 

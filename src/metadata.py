@@ -1,9 +1,37 @@
 import json
 import os
+import re
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from src.sync import run_rclone_commands, prompt_and_refresh_index
 from src.logger import log
+
+# Regex patterns for matching date/time from filenames
+RE_UNIX_MS = re.compile(r"^(\d{13})")
+RE_DATE_TIME = re.compile(
+    r"((?:19|20)\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})"
+)
+
+
+def parse_filename_time(filename):
+    """Try to parse local time from filename patterns."""
+    # 1) Try 13-digit unix timestamp (in ms)
+    ms_match = RE_UNIX_MS.search(filename)
+    if ms_match:
+        ts_ms = int(ms_match.group(1))
+        dt = datetime.fromtimestamp(ts_ms / 1000.0)
+        return dt
+
+    # 2) Try standard YYYYMMDD_HHMMSS
+    dt_match = RE_DATE_TIME.search(filename)
+    if dt_match:
+        year, month, day, hour, minute, second = map(int, dt_match.groups())
+        try:
+            return datetime(year, month, day, hour, minute, second)
+        except ValueError:
+            pass
+
+    return None
 
 
 def get_local_files(directory):
@@ -126,6 +154,25 @@ def cmd_metadata_fix_local(csv_path, photos_dir):
     csv_by_filename = {row["fileName"]: row for row in csv_rows}
     log.info(f"Loaded {len(csv_rows)} entries from CSV.")
 
+    # Pre-parse CSV datetimes for time-based matching fallback
+    def parse_csv_timestamp_local(taken_at_str, offset_ms):
+        try:
+            dt_str = taken_at_str.split(".")[0].replace("Z", "")
+            dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%S")
+            if not offset_ms:
+                offset_ms = 0
+            offset_td = timedelta(milliseconds=float(offset_ms))
+            return dt + offset_td
+        except Exception:
+            return None
+
+    parsed_csv_rows = []
+    for row in csv_rows:
+        taken_at = row.get("takenAt", "")
+        offset = row.get("timezoneOffsetMs", "0")
+        local_dt = parse_csv_timestamp_local(taken_at, offset)
+        parsed_csv_rows.append({"local_dt": local_dt, "row": row})
+
     # Scan directory
     photo_files = []
     for root, dirs, files in os.walk(photos_dir):
@@ -148,9 +195,26 @@ def cmd_metadata_fix_local(csv_path, photos_dir):
         matched_row = csv_by_filename.get(filename)
         if not matched_row:
             for row in csv_rows:
-                if names_match(filename, row["fileName"]):
+                if names_match(filename, row.get("fileName", "")):
                     matched_row = row
                     break
+
+        if not matched_row:
+            # Fallback to matching by timestamp parsed from filename
+            local_time_from_name = parse_filename_time(filename)
+            if local_time_from_name:
+                closest_entry = None
+                min_diff = float("inf")
+                for entry in parsed_csv_rows:
+                    if entry["local_dt"]:
+                        diff = abs(
+                            (entry["local_dt"] - local_time_from_name).total_seconds()
+                        )
+                        if diff < min_diff:
+                            min_diff = diff
+                            closest_entry = entry
+                if min_diff < 7200:  # 2 hours
+                    matched_row = closest_entry["row"]
 
         if not matched_row:
             unmatched.append(filename)
@@ -314,6 +378,14 @@ def cmd_metadata_verify_csv(csv_path, photos_dir, show_missing=False):
     log.info(f"Found {len(photo_files)} photos in directory.")
     log.info(f"Found {len(csv_rows)} entries in CSV.")
 
+    # Pre-parse CSV datetimes for time-based matching fallback
+    parsed_csv_rows = []
+    for i, row in enumerate(csv_rows):
+        taken_at = row.get("takenAt", "")
+        offset = row.get("timezoneOffsetMs", "0")
+        local_dt = parse_csv_timestamp(taken_at, offset)
+        parsed_csv_rows.append({"index": i, "local_dt": local_dt, "row": row})
+
     mismatches = []
     matches = 0
     not_in_csv = []
@@ -322,15 +394,36 @@ def cmd_metadata_verify_csv(csv_path, photos_dir, show_missing=False):
     for filepath in photo_files:
         filename = os.path.basename(filepath)
         matched_row = None
+        matched_idx = -1
         for i, row in enumerate(csv_rows):
-            if names_match(filename, row["fileName"]):
+            if names_match(filename, row.get("fileName", "")):
                 matched_row = row
-                matched_csv_rows.add(i)
+                matched_idx = i
                 break
+
+        if not matched_row:
+            # Fallback to matching by timestamp parsed from filename
+            local_time_from_name = parse_filename_time(filename)
+            if local_time_from_name:
+                closest_entry = None
+                min_diff = float("inf")
+                for entry in parsed_csv_rows:
+                    if entry["local_dt"]:
+                        diff = abs(
+                            (entry["local_dt"] - local_time_from_name).total_seconds()
+                        )
+                        if diff < min_diff:
+                            min_diff = diff
+                            closest_entry = entry
+                if min_diff < 7200:  # 2 hours
+                    matched_row = closest_entry["row"]
+                    matched_idx = closest_entry["index"]
 
         if not matched_row:
             not_in_csv.append(filename)
             continue
+
+        matched_csv_rows.add(matched_idx)
 
         taken_at = matched_row["takenAt"]
         offset = matched_row["timezoneOffsetMs"]

@@ -164,7 +164,11 @@ def cmd_metadata_verify_csv(csv_path, photos_dir):
     photo_files = []
     for root, dirs, files in os.walk(photos_dir):
         for file in files:
-            if file == ".DS_Store":
+            if (
+                file.startswith(".")
+                or file.endswith(".json")
+                or file.endswith("_original")
+            ):
                 continue
             photo_files.append(os.path.join(root, file))
 
@@ -196,13 +200,16 @@ def cmd_metadata_verify_csv(csv_path, photos_dir):
         parsed = parse_csv_timestamp(taken_at, offset)
         if parsed:
             expected_options.append(parsed)
+        # Always include the raw UTC timestamp (offset = 0) as a valid option,
+        # since Google Takeout processing writes dates in UTC format.
+        parsed_utc = parse_csv_timestamp(taken_at, 0)
+        if parsed_utc and parsed_utc not in expected_options:
+            expected_options.append(parsed_utc)
+
         if not offset:
             parsed_ist = parse_csv_timestamp(taken_at, 19800000)
-            if parsed_ist:
+            if parsed_ist and parsed_ist not in expected_options:
                 expected_options.append(parsed_ist)
-            parsed_utc = parse_csv_timestamp(taken_at, 0)
-            if parsed_utc:
-                expected_options.append(parsed_utc)
 
         metadata = get_exif_metadata(filepath)
         dto = parse_exif_time(metadata.get("DateTimeOriginal"))

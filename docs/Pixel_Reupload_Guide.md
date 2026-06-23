@@ -103,3 +103,25 @@ pyinstaller --onefile cleaner.py --name gp-cleaner
 # 2. Overwrite the global CLI in your bin path
 sudo cp dist/gp-cleaner /usr/local/bin/gp-cleaner
 ```
+
+---
+
+## ⚠️ Google Takeout vs. Web UI Downloads (Metadata Details)
+
+When executing this workflow, keep in mind how Google handles metadata in Web UI downloads vs. Google Takeout exports:
+
+### 1. Filesystem Date (`FileModifyDate`) vs. Internal EXIF (`DateTimeOriginal`)
+* **Google Photos Upload Behavior:** When you upload photos to Google Photos, the cloud service prioritizes reading the internal **EXIF `DateTimeOriginal`** tag. It only falls back to the filesystem modification date (`FileModifyDate`/`mtime`) if the EXIF header is completely missing.
+* **Finder/OS display:** Your operating system Finder/Explorer displays the filesystem modified time, which can make files in different directories look identical even if their internal EXIF data differs.
+
+### 2. The Differences
+* **Web UI Album Downloads:**
+  * **Pros:** Easier to download, downloaded as a single ZIP with no filename truncation or duplicate index misalignment.
+  * **Cons:** Google **does not** write corrected database timestamps (such as manual timeline edits or timezone shifts) into the internal EXIF headers of unedited photos. The tool's `process backup` command only corrects the filesystem modified date (`os.utime`), meaning Google Photos will revert those timeline shifts upon re-upload.
+* **Google Takeout Exports:**
+  * **Pros:** Standardizes and exports all database metadata in JSON companions. When merged (resolving the split ZIP parts) and processed using `process takeout`, the tool uses `exiftool` to write corrected timestamps **directly into the internal EXIF headers**.
+  * **Cons:** Splits large folders into multiple ZIPs, meaning you must combine them (e.g. merging `Takeout-2` into `Takeout`) before processing.
+
+> [!TIP]
+> Always verify your folder using `gp-cleaner metadata verify-takeout` or `gp-cleaner metadata verify-csv`. If you have shifted dates on your timeline, processing a merged **Google Takeout export** is the most bulletproof way to preserve them.
+

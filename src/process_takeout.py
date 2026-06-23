@@ -214,12 +214,15 @@ def main(takeout_dir):
             lower_name = matched_media_name.lower()
             photo_exts = (".jpg", ".jpeg", ".heic", ".png", ".webp")
             if lower_name.endswith(photo_exts):
-                stem = Path(matched_media_name).stem
-                # Check for companion video formats
-                for video_ext in (".mp4", ".MP4", ".mov", ".MOV"):
-                    video_name = f"{stem}{video_ext}"
-                    if video_name in media_files and video_name != matched_media_name:
-                        media_names_to_update.append(video_name)
+                stem_lower = Path(matched_media_name).stem.lower()
+                # Check for companion video formats case-insensitively
+                video_exts = (".mp4", ".mov", ".3gp", ".m4v", ".avi")
+                for f in media_files:
+                    if f != matched_media_name:
+                        f_path = Path(f)
+                        if f_path.stem.lower() == stem_lower:
+                            if f_path.suffix.lower() in video_exts:
+                                media_names_to_update.append(f)
 
             # Extract timestamp
             time_section = data.get("photoTakenTime") or data.get("creationTime") or {}

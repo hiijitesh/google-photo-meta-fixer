@@ -2,6 +2,8 @@ import os
 import json
 import csv
 import re
+import subprocess
+import shutil
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -56,7 +58,7 @@ def parse_csv_time(iso_str, offset_ms):
         return None, None
 
 
-def main(csv_paths=None, directories=None):
+def main(csv_paths=None, directories=None, write_exif=False):
     # 1. Load drive index to check if files exist in drive
     print("Loading drive_index.json...")
     drive_files = set()
@@ -97,6 +99,13 @@ def main(csv_paths=None, directories=None):
     unmatched_files = []
     files_processed = 0
     updated_timestamps = 0
+    exif_updates = []  # Populated when write_exif=True
+
+    exiftool_installed = shutil.which("exiftool") is not None
+    if write_exif and not exiftool_installed:
+        print(
+            "Warning: --write-exif requested but exiftool is not installed. EXIF update skipped."
+        )
 
     actual_directories = directories if directories is not None else DIRECTORIES
     for directory in actual_directories:
@@ -187,6 +196,20 @@ def main(csv_paths=None, directories=None):
                 except Exception as e:
                     print(f"Failed to update timestamp for {filename}: {e}")
 
+                # Build EXIF payload if --write-exif flag is set
+                if write_exif and exiftool_installed:
+                    formatted_time = best_csv_match["utc_dt"].strftime(
+                        "%Y:%m:%d %H:%M:%S+00:00"
+                    )
+                    exif_updates.append(
+                        {
+                            "SourceFile": str(filepath.absolute()),
+                            "DateTimeOriginal": formatted_time,
+                            "CreateDate": formatted_time,
+                            "ModifyDate": formatted_time,
+                        }
+                    )
+
                 in_drive = filename in drive_files
 
                 matched_files.append(
@@ -218,6 +241,40 @@ def main(csv_paths=None, directories=None):
 
     print(f"Processed {files_processed} local files.")
     print(f"Updated timestamps for {updated_timestamps} files using CSV metadata.")
+
+    # Run exiftool batch to write EXIF headers if requested
+    if write_exif and exiftool_installed and exif_updates:
+        print(f"Writing EXIF timestamps to {len(exif_updates)} files using exiftool...")
+        os.makedirs("data/json", exist_ok=True)
+        temp_json_path = "data/json/backup_exif_temp.json"
+        temp_files_path = "data/json/backup_files_temp.txt"
+        try:
+            with open(temp_json_path, "w", encoding="utf-8") as f:
+                json.dump(exif_updates, f, indent=2)
+            with open(temp_files_path, "w", encoding="utf-8") as f:
+                for entry in exif_updates:
+                    f.write(entry["SourceFile"] + "\n")
+            cmd = [
+                "exiftool",
+                "-overwrite_original",
+                "-m",
+                f"-json={temp_json_path}",
+                "-@",
+                temp_files_path,
+            ]
+            res = subprocess.run(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            if res.returncode == 0:
+                print("EXIF metadata successfully updated.")
+            else:
+                print(f"Error running exiftool: {res.stderr}")
+        except Exception as e:
+            print(f"Failed to execute exiftool batch: {e}")
+        finally:
+            for p in [temp_json_path, temp_files_path]:
+                if os.path.exists(p):
+                    os.remove(p)
 
     # 4. Save outputs
     with open(MATCHED_OUTPUT, "w", encoding="utf-8") as f:

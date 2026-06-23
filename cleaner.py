@@ -27,12 +27,12 @@ Available subcommands and their usage:
 
 2. Metadata (Audit & fix timestamps)
    - gp-cleaner metadata fix-drive [--remote REMOTE]
-   - gp-cleaner metadata fix-local
-   - gp-cleaner metadata verify-csv --csv CSV --dir DIR
+   - gp-cleaner metadata fix-local --csv CSV --dir DIR
+   - gp-cleaner metadata verify-csv --csv CSV --dir DIR [--show-missing]
    - gp-cleaner metadata verify-takeout
 
 3. Process (Write metadata & filesystem times)
-   - gp-cleaner process backup [--csv [CSV ...]] [--dir [DIR ...]]
+   - gp-cleaner process backup [--csv [CSV ...]] [--dir [DIR ...]] [--write-exif]
    - gp-cleaner process takeout --dir DIR
 
 Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' for details on specific options.
@@ -83,7 +83,16 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
         "--remote", default="gdrive:", help="Rclone remote name"
     )
 
-    meta_sub.add_parser("fix-local", help="Fix local timestamps")
+    fix_local_parser = meta_sub.add_parser(
+        "fix-local",
+        help="Write corrected timestamps from CSV into local photo EXIF headers and filesystem dates",
+    )
+    fix_local_parser.add_argument(
+        "--csv", required=True, help="Path to CSV metadata file"
+    )
+    fix_local_parser.add_argument(
+        "--dir", required=True, help="Directory containing photos"
+    )
 
     verify_csv_parser = meta_sub.add_parser(
         "verify-csv", help="Verify local photo timestamps against a CSV metadata file"
@@ -93,6 +102,12 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
     )
     verify_csv_parser.add_argument(
         "--dir", required=True, help="Directory containing photos"
+    )
+    verify_csv_parser.add_argument(
+        "--show-missing",
+        action="store_true",
+        default=False,
+        help="Print the full list of files missing from directory and extra files not in CSV",
     )
 
     meta_sub.add_parser(
@@ -110,6 +125,12 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
     backup_parser.add_argument("--csv", nargs="*", help="Optional custom CSV path(s)")
     backup_parser.add_argument(
         "--dir", nargs="*", help="Optional custom directory path(s)"
+    )
+    backup_parser.add_argument(
+        "--write-exif",
+        action="store_true",
+        default=False,
+        help="Also embed corrected timestamps into EXIF headers using exiftool (required for Web UI downloads with manually-edited dates)",
     )
 
     takeout_parser = process_sub.add_parser(
@@ -133,9 +154,9 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
         if args.subcommand == "fix-drive":
             cmd_metadata_fix_drive(args.remote)
         elif args.subcommand == "fix-local":
-            cmd_metadata_fix_local()
+            cmd_metadata_fix_local(args.csv, args.dir)
         elif args.subcommand == "verify-csv":
-            cmd_metadata_verify_csv(args.csv, args.dir)
+            cmd_metadata_verify_csv(args.csv, args.dir, show_missing=args.show_missing)
         elif args.subcommand == "verify-takeout":
             cmd_metadata_verify_takeout()
 
@@ -143,7 +164,9 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
         if args.subcommand == "backup":
             import src.process_backup as bp
 
-            bp.main(csv_paths=args.csv, directories=args.dir)
+            bp.main(
+                csv_paths=args.csv, directories=args.dir, write_exif=args.write_exif
+            )
         elif args.subcommand == "takeout":
             import src.process_takeout as pt
 

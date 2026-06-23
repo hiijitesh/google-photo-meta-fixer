@@ -241,7 +241,7 @@ def main(takeout_dir):
             filesystem_updates.append((media_path, ts))
 
             # Build EXIF update payload
-            exif_entry = {
+            exif_entry: dict[str, str | float] = {
                 "SourceFile": str(media_path.absolute()),
                 "DateTimeOriginal": formatted_time,
                 "CreateDate": formatted_time,
@@ -314,7 +314,21 @@ def main(takeout_dir):
             if os.path.exists(temp_files_path):
                 os.remove(temp_files_path)
 
+    # Clean up any _original backup files left behind by exiftool on error
+    cleanup_count = 0
+    for root, dirs, files in os.walk(takeout_path):
+        for f in files:
+            if f.endswith("_original"):
+                try:
+                    os.remove(os.path.join(root, f))
+                    cleanup_count += 1
+                except Exception as e:
+                    log.warning(f"Could not delete backup file {f}: {e}")
+    if cleanup_count:
+        log.info(f"Cleaned up {cleanup_count} exiftool _original backup file(s).")
+
     # 2. Update filesystem modification timestamps (mtime)
+
     if filesystem_updates:
         log.info("Updating local filesystem modification times (os.utime)...")
         updated_mtime_count = 0

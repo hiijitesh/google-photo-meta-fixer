@@ -82,14 +82,153 @@ def cmd_metadata_fix_drive(remote_name):
             run_rclone_commands(touch_commands)
 
 
-def cmd_metadata_fix_local():
-    log.info("=== Local Files Metadata Fix ===")
+def cmd_metadata_fix_local(csv_path, photos_dir):
+    import csv
+    import subprocess
+    import shutil
+
+    log.info("=== Fix Local Photo Timestamps from CSV ===")
+    if not os.path.exists(csv_path):
+        log.error(f"Error: CSV file '{csv_path}' not found.")
+        return
+    if not os.path.isdir(photos_dir):
+        log.error(f"Error: Photos directory '{photos_dir}' not found.")
+        return
+
+    exiftool_installed = shutil.which("exiftool") is not None
+    if exiftool_installed:
+        log.info("Exiftool detected. EXIF headers will be updated.")
+    else:
+        log.warning(
+            "Warning: exiftool not installed. Only filesystem timestamps will be updated."
+        )
+
+    def names_match(dir_name, csv_name):
+        if dir_name == csv_name:
+            return True
+        dir_base, _ = os.path.splitext(dir_name)
+        csv_base, _ = os.path.splitext(csv_name)
+        dir_base = dir_base.replace("-edited", "")
+        csv_base = csv_base.replace("-edited", "")
+        if dir_base == csv_base:
+            return True
+        if len(dir_base) >= 20 and len(csv_base) >= 20:
+            if dir_base.startswith(csv_base) or csv_base.startswith(dir_base):
+                return True
+        return False
+
+    # Read CSV
+    csv_rows = []
+    with open(csv_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            csv_rows.append(row)
+    csv_by_filename = {row["fileName"]: row for row in csv_rows}
+    log.info(f"Loaded {len(csv_rows)} entries from CSV.")
+
+    # Scan directory
+    photo_files = []
+    for root, dirs, files in os.walk(photos_dir):
+        for file in files:
+            if (
+                file.startswith(".")
+                or file.endswith(".json")
+                or file.endswith("_original")
+            ):
+                continue
+            photo_files.append(os.path.join(root, file))
+    log.info(f"Found {len(photo_files)} photos in directory.")
+
+    exif_updates = []
+    filesystem_updates = []
+    unmatched = []
+
+    for filepath in photo_files:
+        filename = os.path.basename(filepath)
+        matched_row = csv_by_filename.get(filename)
+        if not matched_row:
+            for row in csv_rows:
+                if names_match(filename, row["fileName"]):
+                    matched_row = row
+                    break
+
+        if not matched_row:
+            unmatched.append(filename)
+            continue
+
+        taken_at = matched_row.get("takenAt", "")
+        try:
+            iso_str = taken_at.replace("Z", "+00:00")
+            utc_dt = datetime.fromisoformat(iso_str)
+            ts = utc_dt.timestamp()
+        except Exception:
+            unmatched.append(filename)
+            continue
+
+        formatted_time = utc_dt.strftime("%Y:%m:%d %H:%M:%S+00:00")
+        filesystem_updates.append((filepath, ts))
+        if exiftool_installed:
+            exif_updates.append(
+                {
+                    "SourceFile": str(Path(filepath).absolute()),
+                    "DateTimeOriginal": formatted_time,
+                    "CreateDate": formatted_time,
+                    "ModifyDate": formatted_time,
+                }
+            )
+
+    # 1. Update filesystem timestamps
+    mtime_updated = 0
+    for filepath, ts in filesystem_updates:
+        try:
+            os.utime(filepath, (ts, ts))
+            mtime_updated += 1
+        except Exception as e:
+            log.error(f"Failed to update mtime for {os.path.basename(filepath)}: {e}")
+    log.info(f"Filesystem timestamps updated for {mtime_updated} files.")
+
+    # 2. Update EXIF headers via exiftool batch
+    if exiftool_installed and exif_updates:
+        log.info(f"Writing EXIF timestamps to {len(exif_updates)} files...")
+        os.makedirs("data/json", exist_ok=True)
+        temp_json = "data/json/fix_local_exif_temp.json"
+        temp_files = "data/json/fix_local_files_temp.txt"
+        try:
+            with open(temp_json, "w", encoding="utf-8") as f:
+                json.dump(exif_updates, f, indent=2)
+            with open(temp_files, "w", encoding="utf-8") as f:
+                for e in exif_updates:
+                    f.write(e["SourceFile"] + "\n")
+            cmd = [
+                "exiftool",
+                "-overwrite_original",
+                "-m",
+                f"-json={temp_json}",
+                "-@",
+                temp_files,
+            ]
+            res = subprocess.run(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            if res.returncode == 0:
+                log.info("EXIF metadata successfully updated.")
+            else:
+                log.error(f"Error running exiftool: {res.stderr}")
+        except Exception as e:
+            log.error(f"Failed to execute exiftool batch: {e}")
+        finally:
+            for p in [temp_json, temp_files]:
+                if os.path.exists(p):
+                    os.remove(p)
+
     log.info(
-        "Migrating logic from fix_local_timestamps.py... (To be fully implemented if needed)"
+        f"Summary: {len(filesystem_updates)} matched & updated, {len(unmatched)} unmatched."
     )
+    if unmatched:
+        log.warning(f"Unmatched files (first 10): {unmatched[:10]}")
 
 
-def cmd_metadata_verify_csv(csv_path, photos_dir):
+def cmd_metadata_verify_csv(csv_path, photos_dir, show_missing=False):
     import csv
     import subprocess
 
@@ -254,6 +393,16 @@ def cmd_metadata_verify_csv(csv_path, photos_dir):
         row["fileName"] for i, row in enumerate(csv_rows) if i not in matched_csv_rows
     ]
     log.info(f"CSV entries not found in directory: {len(missing_from_dir)}")
+
+    if show_missing:
+        if missing_from_dir:
+            log.info("Files in CSV but missing from directory:")
+            for name in missing_from_dir:
+                log.info(f"  ❌ {name}")
+        if not_in_csv:
+            log.info("Files in directory but not found in CSV:")
+            for name in not_in_csv:
+                log.info(f"  ❓ {name}")
 
     if mismatches:
         log.info("Mismatch details (First 10):")

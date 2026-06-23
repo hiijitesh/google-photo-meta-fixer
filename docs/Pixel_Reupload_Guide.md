@@ -23,17 +23,37 @@ graph TD
 
 ## 🛠️ Step-by-Step Guide
 
-### Step 1: Download the Album from Google Photos Web (Not Takeout)
-Google Takeout is notoriously buggy, splits downloads into multiple parts, and frequently misses files. For specific albums, downloading directly from the Google Photos Web UI is much more reliable.
+### Step 1: Choose Your Download Method
 
+> [!IMPORTANT]
+> **Have you ever manually edited a photo's date or time inside the Google Photos web/app?**
+> - **No (clean library):** Use the **Web UI** method below. It is simpler and more reliable for a single album.
+> - **Yes (edited dates/timezones):** Use **Google Takeout** instead. Go straight to the Google Takeout workflow below. Web UI downloads will **not** embed corrected timestamps into the EXIF headers of edited photos, meaning they will revert to the original camera date upon re-upload.
+
+---
+
+#### Option A: Web UI Download (for unedited libraries)
 1. Open your browser and go to [photos.google.com](https://photos.google.com).
 2. Open the album you want to process (e.g., `T2`).
 3. Click the **3 dots** in the top-right corner.
 4. Click **Download all**.
-5. Extract (unzip) the downloaded zip file into a local directory on your computer (e.g. `/Users/hiijitesh/Downloads/T2_Web`).
+5. Extract (unzip) the downloaded zip file into a local directory (e.g. `/Users/hiijitesh/Downloads/T2_Web`).
 
 > [!NOTE]
-> Web downloads preserve all internal EXIF metadata (camera model, GPS coordinates, and captured date) inside the files. However, the filesystem creation/modification dates (`mtime`) are reset to the download date.
+> Web downloads preserve the original camera EXIF metadata inside the files. However, the filesystem modification dates (`mtime`) are reset to the download date and must be restored using `process backup`.
+
+#### Option B: Google Takeout (for libraries with edited dates)
+1. Go to [takeout.google.com](https://takeout.google.com) and request an export for Google Photos only.
+2. Download **all** ZIP parts of the export (e.g., `...-3-001.zip`, `...-3-002.zip`, etc.).
+3. Extract each ZIP part into separate folders (e.g., `Takeout`, `Takeout-2`).
+4. **Merge** all parts into a single folder using rsync:
+   ```bash
+   rsync -a "/Users/hiijitesh/Documents/Takeout-2/Google Photos/T2/" "/Users/hiijitesh/Documents/Takeout/Google Photos/T2/"
+   ```
+5. Run the **Takeout** workflow (skip to Step 2B below) instead of Step 2.
+
+> [!CAUTION]
+> Google Takeout splits large exports across multiple ZIP files. A photo can land in ZIP Part 1 while its companion metadata JSON ends up in ZIP Part 2. **You must merge all extracted folders before running `process takeout`**, otherwise most files will be skipped.
 
 ---
 

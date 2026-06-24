@@ -241,17 +241,7 @@ def cmd_metadata_fix_local(csv_path, photos_dir):
                 }
             )
 
-    # 1. Update filesystem timestamps
-    mtime_updated = 0
-    for filepath, ts in filesystem_updates:
-        try:
-            os.utime(filepath, (ts, ts))
-            mtime_updated += 1
-        except Exception as e:
-            log.error(f"Failed to update mtime for {os.path.basename(filepath)}: {e}")
-    log.info(f"Filesystem timestamps updated for {mtime_updated} files.")
-
-    # 2. Update EXIF headers via exiftool batch
+    # 1. Update EXIF headers via exiftool batch
     if exiftool_installed and exif_updates:
         log.info(f"Writing EXIF timestamps to {len(exif_updates)} files...")
         os.makedirs("data/json", exist_ok=True)
@@ -284,6 +274,16 @@ def cmd_metadata_fix_local(csv_path, photos_dir):
             for p in [temp_json, temp_files]:
                 if os.path.exists(p):
                     os.remove(p)
+
+    # 2. Update filesystem timestamps
+    mtime_updated = 0
+    for filepath, ts in filesystem_updates:
+        try:
+            os.utime(filepath, (ts, ts))
+            mtime_updated += 1
+        except Exception as e:
+            log.error(f"Failed to update mtime for {os.path.basename(filepath)}: {e}")
+    log.info(f"Filesystem timestamps updated for {mtime_updated} files.")
 
     log.info(
         f"Summary: {len(filesystem_updates)} matched & updated, {len(unmatched)} unmatched."

@@ -5,11 +5,48 @@ This guide provides deep technical documentation, usage examples, workflow descr
 ---
 
 ## 🚀 1. High-Level Customer Workflow
-To back up and clean up your Google Photos metadata, follow this standard sequence:
+To back up and clean up your Google Photos metadata, follow these standard command sequences:
 
-1. **Provide CSV Metadata:** Export your space-consuming photo/video metadata from your browser using the Google Photos Toolkit (GPTK) userscript as a CSV file (e.g. `metadata.csv`).
-2. **Provide unzipped Google Takeout Folder:** Download your Google Takeout archive and extract it locally to a folder.
-3. **Configure Google Drive Remote & Target Folder:** Set up your `rclone` remote connection (e.g., `gdrive:`) and specify the target remote folder (e.g., `photos_backUp`) where the cloud-to-cloud copy and touch operations will execute.
+### 📂 Google Takeout Workflow (In Order)
+If you are processing photos exported via **Google Takeout**:
+1.  **Merge Metadata JSONs into Photos:**
+    Updates EXIF headers and filesystem dates for all photos/videos and companion videos matching a Takeout JSON:
+    ```bash
+    gp-cleaner process takeout --dir "/path/to/Takeout"
+    ```
+2.  **Verify Takeout Merger:**
+    Audits the updated folders to ensure EXIF headers and filesystem timestamps are correct:
+    ```bash
+    gp-cleaner metadata verify-takeout
+    ```
+3.  **Verify Takeout Photos Against CSV (Optional):**
+    If you also have a custom browser CSV export, audit the Takeout photos against the CSV to confirm alignment:
+    ```bash
+    gp-cleaner metadata verify-csv --csv "path/to/metadata.csv" --dir "/path/to/Takeout/Google Photos/Album"
+    ```
+
+### 📊 GPTK Browser CSV Workflow (In Order)
+If you are processing space-consuming photos and using a browser-level **GPTK CSV** metadata export:
+1.  **Sync Consuming Photos (Cloud-to-Cloud):**
+    Identifies space-consuming files from your CSV and copies them cloud-to-cloud into your backup folder:
+    ```bash
+    gp-cleaner sync consuming --csv "path/to/metadata.csv" --remote gdrive:
+    ```
+2.  **Fix Local Photo Timestamps (EXIF + Filesystem):**
+    Matches downloaded photos to your CSV and writes the correct timestamps into both the EXIF headers and filesystem dates:
+    ```bash
+    gp-cleaner metadata fix-local --csv "path/to/metadata.csv" --dir "/path/to/photos"
+    ```
+3.  **Verify Local Timestamps Against CSV:**
+    Audits the folder to check if local photo times match the CSV:
+    ```bash
+    gp-cleaner metadata verify-csv --csv "path/to/metadata.csv" --dir "/path/to/photos"
+    ```
+4.  **Fix Drive Timestamps:**
+    Compares local timestamps against Google Drive files and aligns the remote timestamps via `rclone touch`:
+    ```bash
+    gp-cleaner metadata fix-drive --remote gdrive:
+    ```
 
 ---
 
@@ -78,7 +115,7 @@ gp-cleaner [command] [options]
 
 ## 📊 4. Google Photos Toolkit (GPTK) CSV Specification
 
-The `sync consuming`, `process backup`, and `metadata verify-csv` commands parse metadata CSV files exported from the browser-level Google Photos Toolkit userscript. 
+The `sync consuming`, `process backup`, and `metadata verify-csv` commands parse metadata CSV files exported from the browser-level Google Photos Toolkit userscript.
 
 The tool inspects the following columns:
 
@@ -237,6 +274,10 @@ Before executing any sync or cloud-metadata subcommand, the tool prompts you to 
 *   **Syntax:**
     ```bash
     gp-cleaner process takeout --dir TAKEOUT_DIR
+    ```
+*   **Example:**
+    ```bash
+    gp-cleaner process takeout --dir "/Users/hiijitesh/Downloads/Takeout"
     ```
 
 ---

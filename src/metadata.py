@@ -626,3 +626,316 @@ def cmd_metadata_verify_takeout():
                 )
     else:
         log.info("🎉 All records verified successfully!")
+
+
+def parse_date_from_path(filepath):
+    # Parse from filename first
+    filename = os.path.basename(filepath)
+
+    # 1) Try standard YYYYMMDD_HHMMSS or similar 14-digit pattern
+    # e.g., IMG20250728135112 -> 2025, 07, 28, 13, 51, 12
+    # VID20250701112911 -> 2025, 07, 01, 11, 29, 11
+    match14 = re.search(
+        r"(\d{4})[_-]?(\d{2})[_-]?(\d{2})[_-]?(\d{2})[_-]?(\d{2})[_-]?(\d{2})",
+        filename,
+    )
+    if match14:
+        y, m, d, h, mi, s = map(int, match14.groups())
+        try:
+            return datetime(y, m, d, h, mi, s)
+        except ValueError:
+            pass
+
+    # 2) Try YYYYMMDD (8-digit pattern, e.g. WhatsApp IMG-20250501-WA0002)
+    match8 = re.search(r"(\d{4})[_-]?(\d{2})[_-]?(\d{2})", filename)
+    if match8:
+        y, m, d = map(int, match8.groups())
+        try:
+            # WhatsApp photos don't have H:M:S, default to 12:00:00 (noon)
+            return datetime(y, m, d, 12, 0, 0)
+        except ValueError:
+            pass
+
+    # 3) Try path structure: July 2025/1 July /Photo from Rahul Bharti.jpg
+    parts = Path(filepath).parts
+    if len(parts) >= 3:
+        # Check parent folder: e.g., '1 July ' or '1 July' or '17 July'
+        parent = parts[-2].strip().lower()
+        # Check grandparent folder: e.g., 'July 2025'
+        grandparent = parts[-3].strip().lower()
+
+        # Regex for parent: '(\d{1,2})\s+([a-z]+)'
+        parent_match = re.match(r"^(\d{1,2})\s+([a-z]+)", parent)
+        # Regex for grandparent: '([a-z]+)\s+(\d{4})'
+        gp_match = re.match(r"^([a-z]+)\s+(\d{4})", grandparent)
+
+        if parent_match and gp_match:
+            day = int(parent_match.group(1))
+            month_str = parent_match.group(2)
+            year = int(gp_match.group(2))
+
+            months_map = {
+                "january": 1,
+                "february": 2,
+                "march": 3,
+                "april": 4,
+                "may": 5,
+                "june": 6,
+                "july": 7,
+                "august": 8,
+                "september": 9,
+                "october": 10,
+                "november": 11,
+                "december": 12,
+                "jan": 1,
+                "feb": 2,
+                "mar": 3,
+                "apr": 4,
+                "may": 5,
+                "jun": 6,
+                "jul": 7,
+                "aug": 8,
+                "sep": 9,
+                "oct": 10,
+                "nov": 11,
+                "dec": 12,
+            }
+            if month_str in months_map:
+                month = months_map[month_str]
+                try:
+                    return datetime(year, month, day, 12, 0, 0)
+                except ValueError:
+                    pass
+    return None
+
+
+def cmd_metadata_fix_filename(directory, flatten=False):
+    import shutil
+    import subprocess
+
+    log.info("=== Fix Local Photo Timestamps from Filename/Path ===")
+    if not os.path.isdir(directory):
+        log.error(f"Error: Directory '{directory}' not found.")
+        return
+
+    exiftool_installed = shutil.which("exiftool") is not None
+    if exiftool_installed:
+        log.info("Exiftool detected. EXIF headers will be updated.")
+    else:
+        log.warning(
+            "Warning: exiftool not installed. Only filesystem timestamps will be updated."
+        )
+
+    photo_files = []
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.startswith(".") or file.endswith("_original"):
+                continue
+            photo_files.append(os.path.join(root, file))
+
+    log.info(f"Found {len(photo_files)} files in directory.")
+
+    exif_by_path = {}
+    if exiftool_installed and photo_files:
+        log.info("Reading current EXIF metadata in batch...")
+        os.makedirs("data/json", exist_ok=True)
+        temp_files = "data/json/read_exif_files_temp.txt"
+        try:
+            with open(temp_files, "w", encoding="utf-8") as f:
+                for path in photo_files:
+                    f.write(path + "\n")
+            cmd = ["exiftool", "-json", "-DateTimeOriginal", "-@", temp_files]
+            res = subprocess.run(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            if res.returncode == 0:
+                data = json.loads(res.stdout)
+                for item in data:
+                    sf = item.get("SourceFile")
+                    if sf:
+                        sf_abs = str(Path(sf).absolute())
+                        exif_by_path[sf_abs] = item.get("DateTimeOriginal")
+            else:
+                log.warning(f"Exiftool read warning: {res.stderr}")
+        except Exception as e:
+            log.warning(f"Failed to read EXIF in batch: {e}")
+        finally:
+            if os.path.exists(temp_files):
+                os.remove(temp_files)
+
+    exif_updates = []
+    filesystem_updates = []
+    skipped_no_date = 0
+
+    # Collect updates
+    for filepath in photo_files:
+        filepath_abs = str(Path(filepath).absolute())
+        target_dt = parse_date_from_path(filepath)
+        if not target_dt:
+            skipped_no_date += 1
+            continue
+
+        target_ts = target_dt.timestamp()
+
+        try:
+            current_mtime = os.path.getmtime(filepath)
+        except Exception:
+            current_mtime = 0.0
+
+        current_exif_str = exif_by_path.get(filepath_abs)
+        current_exif_dt = None
+        if current_exif_str:
+            try:
+                clean_str = current_exif_str.split("+")[0].split("-")[0].strip()
+                current_exif_dt = datetime.strptime(clean_str, "%Y:%m:%d %H:%M:%S")
+            except Exception:
+                pass
+
+        needs_update = False
+        if abs(current_mtime - target_ts) > 2.0:
+            needs_update = True
+        if exiftool_installed:
+            if not current_exif_dt:
+                needs_update = True
+            elif abs((current_exif_dt - target_dt).total_seconds()) > 2.0:
+                needs_update = True
+
+        if needs_update:
+            formatted_time = target_dt.strftime("%Y:%m:%d %H:%M:%S")
+            filesystem_updates.append((filepath, target_ts))
+            if exiftool_installed:
+                exif_updates.append(
+                    {
+                        "SourceFile": filepath_abs,
+                        "DateTimeOriginal": formatted_time,
+                        "CreateDate": formatted_time,
+                        "ModifyDate": formatted_time,
+                    }
+                )
+
+    log.info(
+        f"Analysis complete: {len(filesystem_updates)} files have wrong timestamps."
+    )
+    log.info(f"Skipped {skipped_no_date} files (could not parse timestamp).")
+
+    # If updates are needed, prompt and run
+    if filesystem_updates:
+        if (
+            input(
+                f"Proceed to correct timestamps for these {len(filesystem_updates)} files? (y/n): "
+            )
+            .strip()
+            .lower()
+            == "y"
+        ):
+            # 1. Update EXIF first
+            if exiftool_installed and exif_updates:
+                log.info(f"Writing EXIF timestamps to {len(exif_updates)} files...")
+                os.makedirs("data/json", exist_ok=True)
+                temp_json = "data/json/fix_filename_exif_temp.json"
+                temp_files = "data/json/fix_filename_files_temp.txt"
+                try:
+                    with open(temp_json, "w", encoding="utf-8") as f:
+                        json.dump(exif_updates, f, indent=2)
+                    with open(temp_files, "w", encoding="utf-8") as f:
+                        for e in exif_updates:
+                            f.write(e["SourceFile"] + "\n")
+                    cmd = [
+                        "exiftool",
+                        "-overwrite_original",
+                        "-m",
+                        f"-json={temp_json}",
+                        "-@",
+                        temp_files,
+                    ]
+                    res = subprocess.run(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                    )
+                    if res.returncode == 0:
+                        log.info("EXIF metadata successfully updated.")
+                    else:
+                        log.error(f"Error running exiftool: {res.stderr}")
+                except Exception as e:
+                    log.error(f"Failed to execute exiftool batch: {e}")
+                finally:
+                    for p in [temp_json, temp_files]:
+                        if os.path.exists(p):
+                            os.remove(p)
+
+            # 2. Update filesystem timestamps second
+            mtime_updated = 0
+            for filepath, ts in filesystem_updates:
+                try:
+                    os.utime(filepath, (ts, ts))
+                    mtime_updated += 1
+                except Exception as e:
+                    log.error(
+                        f"Failed to update mtime for {os.path.basename(filepath)}: {e}"
+                    )
+            log.info(f"Filesystem timestamps updated for {mtime_updated} files.")
+    else:
+        log.info("All parsed files have correct timestamps.")
+
+    # 3. Flatten if requested
+    if flatten:
+        log.info("Flattening directory structure...")
+        root_dir = Path(directory)
+        moved_count = 0
+
+        # Re-scan current files to ensure fresh paths after timestamp writes
+        current_files = []
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                if file.startswith(".") or file.endswith("_original"):
+                    continue
+                current_files.append(Path(root) / file)
+
+        for filepath in current_files:
+            if filepath.parent == root_dir:
+                # Already in root directory
+                continue
+
+            # Target path in root
+            target_name = filepath.name
+            target_path = root_dir / target_name
+
+            # Resolve name conflicts
+            counter = 1
+            stem = filepath.stem
+            suffix = filepath.suffix
+            while target_path.exists():
+                target_name = f"{stem}({counter}){suffix}"
+                target_path = root_dir / target_name
+                counter += 1
+
+            try:
+                # Move file
+                shutil.move(str(filepath), str(target_path))
+                moved_count += 1
+            except Exception as e:
+                log.error(f"Failed to move {filepath.name} to root: {e}")
+
+        log.info(f"Successfully moved {moved_count} files to the root directory.")
+
+        # Clean up empty subdirectories (ignoring/removing hidden files like .DS_Store)
+        deleted_dirs = 0
+        for root, dirs, files in os.walk(directory, topdown=False):
+            for d in dirs:
+                dir_path = Path(root) / d
+                try:
+                    all_contents = list(dir_path.iterdir())
+                    non_hidden = [p for p in all_contents if not p.name.startswith(".")]
+                    if not non_hidden:
+                        for p in all_contents:
+                            if p.is_file() or p.is_symlink():
+                                p.unlink()
+                        dir_path.rmdir()
+                        deleted_dirs += 1
+                except Exception:
+                    pass
+        log.info(f"Cleaned up {deleted_dirs} empty subdirectories.")
+
+    log.info("Done!")

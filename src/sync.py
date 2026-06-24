@@ -132,8 +132,10 @@ def cmd_sync_backup(remote_name):
             run_rclone_commands(commands)
 
 
-def cmd_sync_consuming(csv_path, remote_name):
+def cmd_sync_consuming(csv_path, remote_name, dest_subfolder=""):
     log.info("=== Google Drive Consuming Album Sync ===")
+    if dest_subfolder:
+        log.info(f"Target subfolder: photos_backUp/{dest_subfolder}")
     prompt_and_refresh_index(remote_name, backup_only=False)
     if not os.path.exists(csv_path):
         log.error(f"Error: CSV file {csv_path} not found.")
@@ -171,18 +173,23 @@ def cmd_sync_consuming(csv_path, remote_name):
     missing_files = []
     other_places = []
 
+    # Check if already in the target photos_backUp (or specific subfolder)
+    target_prefix = (
+        f"photos_backUp/{dest_subfolder}/" if dest_subfolder else "photos_backUp/"
+    )
+
     for filename in sorted(target_files):
         filename_lower = filename.lower()
         if filename_lower not in drive_lookup_lower:
             missing_files.append(filename)
             continue
 
-        # Check if already in photos_backUp
+        # Check if already in photos_backUp under target prefix
         in_backup = False
         exact_entry = None
         for entry in drive_lookup_lower[filename_lower]:
             path = entry.get("Path") or entry.get("path")
-            if path.startswith("photos_backUp/"):
+            if path.startswith(target_prefix):
                 in_backup = True
             # Prefer exact name match if available
             if entry.get("Name") == filename or exact_entry is None:
@@ -193,11 +200,13 @@ def cmd_sync_consuming(csv_path, remote_name):
         else:
             if exact_entry is not None:
                 other_places.append((filename, exact_entry))
-                # Destination path: directly inside photos_backUp (don't create subfolders)
                 drive_filename = exact_entry.get("Name") or exact_entry.get("name")
                 source_path = exact_entry.get("Path") or exact_entry.get("path")
                 if drive_filename and source_path:
-                    target_path = f"photos_backUp/{drive_filename}"
+                    if dest_subfolder:
+                        target_path = f"photos_backUp/{dest_subfolder}/{drive_filename}"
+                    else:
+                        target_path = f"photos_backUp/{drive_filename}"
                     commands.append(
                         f'rclone copyto --ignore-existing "{remote_name}{source_path}" "{remote_name}{target_path}"'
                     )
@@ -206,12 +215,12 @@ def cmd_sync_consuming(csv_path, remote_name):
 
     log.info("Summary:")
     log.info(f"  Total unique files in CSV: {len(target_files)}")
-    log.info(f"  Already in photos_backUp: {len(already_backed_up)}")
+    log.info(f"  Already in target backup: {len(already_backed_up)}")
     log.info(f"  Missing from Google Drive: {len(missing_files)}")
-    log.info(f"  Found in Drive but not in photos_backUp: {len(other_places)}")
+    log.info(f"  Found in Drive but not in target backup: {len(other_places)}")
 
     if other_places:
-        log.info("Files to be added to photos_backUp:")
+        log.info("Files to be added to backup:")
         for name, entry in other_places:
             log.info(f"  - {name} (currently at: {entry['Path']})")
 

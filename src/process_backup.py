@@ -100,6 +100,7 @@ def main(csv_paths=None, directories=None, write_exif=False):
     files_processed = 0
     updated_timestamps = 0
     exif_updates = []  # Populated when write_exif=True
+    filesystem_updates = []
 
     exiftool_installed = shutil.which("exiftool") is not None
     if write_exif and not exiftool_installed:
@@ -190,11 +191,8 @@ def main(csv_paths=None, directories=None, write_exif=False):
             if best_csv_match:
                 # Get the true UTC timestamp from the CSV
                 target_utc = best_csv_match["utc_dt"].timestamp()
-                try:
-                    os.utime(filepath, (target_utc, target_utc))
-                    updated_timestamps += 1
-                except Exception as e:
-                    print(f"Failed to update timestamp for {filename}: {e}")
+                filesystem_updates.append((filepath, target_utc))
+                updated_timestamps += 1
 
                 # Build EXIF payload if --write-exif flag is set
                 if write_exif and exiftool_installed:
@@ -275,6 +273,15 @@ def main(csv_paths=None, directories=None, write_exif=False):
             for p in [temp_json_path, temp_files_path]:
                 if os.path.exists(p):
                     os.remove(p)
+
+    # 4. Update filesystem modification timestamps (mtime) after exiftool has completed
+    if filesystem_updates:
+        print("Updating local filesystem modification times (os.utime)...")
+        for filepath, ts in filesystem_updates:
+            try:
+                os.utime(filepath, (ts, ts))
+            except Exception as e:
+                print(f"Failed to update filesystem time for {filepath.name}: {e}")
 
     # 4. Save outputs
     with open(MATCHED_OUTPUT, "w", encoding="utf-8") as f:

@@ -56,6 +56,11 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
     consuming_parser.add_argument(
         "--remote", default="gdrive:", help="Rclone remote name"
     )
+    consuming_parser.add_argument(
+        "--dest",
+        default="",
+        help="Destination subfolder name under photos_backUp (e.g. 22v2)",
+    )
 
     upload_local_parser = sync_sub.add_parser(
         "upload-local", help="Upload local files to Drive if missing in index"
@@ -146,7 +151,7 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
         if args.subcommand == "backup":
             cmd_sync_backup(args.remote)
         elif args.subcommand == "consuming":
-            cmd_sync_consuming(args.csv, args.remote)
+            cmd_sync_consuming(args.csv, args.remote, args.dest)
         elif args.subcommand == "upload-local":
             cmd_sync_upload_local(args.dir, args.remote, args.dest)
 

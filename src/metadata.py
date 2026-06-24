@@ -213,7 +213,7 @@ def cmd_metadata_fix_local(csv_path, photos_dir):
                         if diff < min_diff:
                             min_diff = diff
                             closest_entry = entry
-                if min_diff < 7200:  # 2 hours
+                if closest_entry is not None and min_diff < 7200:  # 2 hours
                     matched_row = closest_entry["row"]
 
         if not matched_row:
@@ -415,7 +415,7 @@ def cmd_metadata_verify_csv(csv_path, photos_dir, show_missing=False):
                         if diff < min_diff:
                             min_diff = diff
                             closest_entry = entry
-                if min_diff < 7200:  # 2 hours
+                if closest_entry is not None and min_diff < 7200:  # 2 hours
                     matched_row = closest_entry["row"]
                     matched_idx = closest_entry["index"]
 

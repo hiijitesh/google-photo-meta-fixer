@@ -184,7 +184,7 @@ def main(csv_paths=None, directories=None, write_exif=False):
                             closest_entry = entry
 
                     # If it's within a reasonable threshold (e.g. 2 hours) we consider it a match
-                    if min_diff < 7200:
+                    if closest_entry is not None and min_diff < 7200:
                         best_csv_match = closest_entry
 
             if best_csv_match:

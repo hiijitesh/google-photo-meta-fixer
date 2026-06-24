@@ -10,6 +10,7 @@ from src.metadata import (
     cmd_metadata_fix_local,
     cmd_metadata_verify_csv,
     cmd_metadata_verify_takeout,
+    cmd_metadata_fix_filename,
 )
 
 
@@ -30,6 +31,7 @@ Available subcommands and their usage:
    - gp-cleaner metadata fix-local --csv CSV --dir DIR
    - gp-cleaner metadata verify-csv --csv CSV --dir DIR [--show-missing]
    - gp-cleaner metadata verify-takeout
+   - gp-cleaner metadata fix-filename --dir DIR [--flatten]
 
 3. Process (Write metadata & filesystem times)
    - gp-cleaner process backup [--csv [CSV ...]] [--dir [DIR ...]] [--write-exif]
@@ -120,6 +122,20 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
         help="Verify local photo timestamps and EXIF tags against Google Takeout match log index",
     )
 
+    fix_filename_parser = meta_sub.add_parser(
+        "fix-filename",
+        help="Fix local photo timestamps from filename/path and optionally flatten",
+    )
+    fix_filename_parser.add_argument(
+        "--dir", required=True, help="Directory containing photos"
+    )
+    fix_filename_parser.add_argument(
+        "--flatten",
+        action="store_true",
+        default=False,
+        help="Flatten all subdirectories to the root",
+    )
+
     # Process commands (Placeholder for now)
     process_parser = subparsers.add_parser(
         "process", help="Process local photos based on CSV metadata"
@@ -164,6 +180,8 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
             cmd_metadata_verify_csv(args.csv, args.dir, show_missing=args.show_missing)
         elif args.subcommand == "verify-takeout":
             cmd_metadata_verify_takeout()
+        elif args.subcommand == "fix-filename":
+            cmd_metadata_fix_filename(args.dir, flatten=args.flatten)
 
     elif args.command == "process":
         if args.subcommand == "backup":

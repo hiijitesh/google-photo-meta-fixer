@@ -161,6 +161,28 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
         "--dir", required=True, help="Path to Google Takeout directory"
     )
 
+    bind_motion_parser = process_sub.add_parser(
+        "bind-motion",
+        help="Embed companion motion video (_MP.MP4) into its paired JPEG to create Google Motion Photos",
+    )
+    bind_motion_parser.add_argument(
+        "--dir",
+        required=True,
+        help="Directory containing _MP.jpg and companion video files",
+    )
+    bind_motion_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Print what would be done without modifying any files",
+    )
+    bind_motion_parser.add_argument(
+        "--keep-video",
+        action="store_true",
+        default=False,
+        help="Keep the standalone video file after embedding (default: delete it)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "sync":
@@ -194,6 +216,10 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
             import src.process_takeout as pt
 
             pt.main(args.dir)
+        elif args.subcommand == "bind-motion":
+            import src.bind_motion as bm
+
+            bm.main(args.dir, dry_run=args.dry_run, keep_video=args.keep_video)
 
 
 if __name__ == "__main__":

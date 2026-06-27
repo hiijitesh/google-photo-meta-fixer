@@ -17,3 +17,5 @@ dist/
 *.spec
 *.egg-info/
 .eggs/
+Takeout-ish
+Takeout-ish/merged/

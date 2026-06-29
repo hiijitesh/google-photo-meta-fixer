@@ -19,6 +19,7 @@ export default function ProcessScreen() {
       return () => {
         // Clear the screen logs when navigating away
         if (!isProcessing) {
+          logHistoryRef.current = [];
           setLogs([]);
           setProgress(0);
         }
@@ -26,11 +27,14 @@ export default function ProcessScreen() {
     }, [isProcessing])
   );
 
+  const logHistoryRef = useRef([]);
   const scrollViewRef = useRef(null);
 
   const addLog = (msg) => {
+    const formatted = `[${new Date().toLocaleTimeString()}] ${msg}`;
     console.log(`[UI LOG] ${msg}`);
-    setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
+    logHistoryRef.current.push(formatted);
+    setLogs([...logHistoryRef.current]);
   };
 
   const handlePickAndProcess = async () => {
@@ -48,6 +52,7 @@ export default function ProcessScreen() {
 
       console.log('[DEBUG] Setting processing state to true');
       setIsProcessing(true);
+      logHistoryRef.current = [];
       setLogs([]);
       setProgress(0.05);
       await sleep(50); // Force UI update before heavy lifting
@@ -117,7 +122,33 @@ export default function ProcessScreen() {
       addLog('[DEBUG] Extraction finished. Starting metadata merging...');
       await sleep(10);
       await processExtractedFiles(targetDir, addLog, setProgress, outputDirUri);
-      console.log(`[DEBUG] processExtractedFiles complete. Setting isProcessing false.`);
+      console.log(`[DEBUG] processExtractedFiles complete. Saving log file...`);
+      
+      if (outputDirUri) {
+        addLog('Saving process log file...');
+        try {
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const logFileName = `process_log_${timestamp}.txt`;
+          const logContent = logHistoryRef.current.join('\n');
+          
+          const logSafUri = await FileSystem.StorageAccessFramework.createFileAsync(
+            outputDirUri,
+            logFileName,
+            'text/plain'
+          );
+          await FileSystem.StorageAccessFramework.writeAsStringAsync(
+            logSafUri,
+            logContent,
+            { encoding: FileSystem.EncodingType.UTF8 }
+          );
+          addLog(`Process log successfully saved as: ${logFileName}`);
+        } catch (logErr) {
+          console.error('[DEBUG] Failed to save log file:', logErr);
+          addLog(`Failed to save log file: ${logErr.message}`);
+        }
+      }
+
+      console.log(`[DEBUG] Finishing processing phase. Setting isProcessing false.`);
       setIsProcessing(false);
 
     } catch (error) {

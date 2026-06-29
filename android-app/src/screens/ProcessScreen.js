@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { View, StyleSheet, ScrollView, Platform } from 'react-native';
-import { Button, Text, Card, Title, ProgressBar } from 'react-native-paper';
+import { Button, Text, Card, ProgressBar } from 'react-native-paper';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { unzip } from 'react-native-zip-archive';
@@ -49,9 +49,23 @@ export default function ProcessScreen() {
       console.log('[DEBUG] Setting processing state to true');
       setIsProcessing(true);
       setLogs([]);
-      setProgress(0.1);
+      setProgress(0.05);
       await sleep(50); // Force UI update before heavy lifting
-      
+
+      let outputDirUri = null;
+      if (Platform.OS === 'android') {
+        addLog('Please select a destination folder to save the clean photos...');
+        await sleep(100);
+        const outputPerm = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (!outputPerm.granted) {
+          addLog('Permission denied. Processing aborted.');
+          setIsProcessing(false);
+          return;
+        }
+        outputDirUri = outputPerm.directoryUri;
+        addLog('Destination folder authorized successfully.');
+      }
+
       const assets = result.assets;
       console.log(`[DEBUG] Selected ${assets.length} ZIP file(s). Asset 0 URI:`, assets[0]?.uri);
       addLog(`Selected ${assets.length} ZIP file(s).`);
@@ -60,7 +74,7 @@ export default function ProcessScreen() {
       const targetDir = `${FileSystem.documentDirectory}extracted/`;
       console.log(`[DEBUG] Target directory is: ${targetDir}`);
       addLog(`[DEBUG] Target directory is: ${targetDir}`);
-      
+
       // Ensure dir exists
       console.log(`[DEBUG] Checking if directory exists...`);
       addLog(`[DEBUG] Checking if directory exists...`);
@@ -83,11 +97,11 @@ export default function ProcessScreen() {
           console.log(`[DEBUG] Extracting native zip using react-native-zip-archive...`);
           addLog(`[DEBUG] Extracting native zip using react-native-zip-archive...`);
           await sleep(10);
-          
+
           const zipPath = asset.uri.replace('file://', '');
           const destPath = targetDir.replace('file://', '');
           await unzip(zipPath, destPath);
-          
+
           console.log(`[DEBUG] Extraction complete for ${asset.name}`);
           addLog(`Extracted successfully.`);
           await sleep(10);
@@ -102,7 +116,7 @@ export default function ProcessScreen() {
       console.log(`[DEBUG] Starting metadata merging phase...`);
       addLog('[DEBUG] Extraction finished. Starting metadata merging...');
       await sleep(10);
-      await processExtractedFiles(targetDir, addLog, setProgress);
+      await processExtractedFiles(targetDir, addLog, setProgress, outputDirUri);
       console.log(`[DEBUG] processExtractedFiles complete. Setting isProcessing false.`);
       setIsProcessing(false);
 
@@ -122,8 +136,8 @@ export default function ProcessScreen() {
             Select Google Takeout ZIP files. The app will extract them and apply JSON metadata directly to the EXIF tags of your photos.
           </Text>
           {!isProcessing && (
-            <Button 
-              mode="contained" 
+            <Button
+              mode="contained"
               onPress={handlePickAndProcess}
               style={styles.button}
               labelStyle={styles.buttonLabel}
@@ -132,14 +146,17 @@ export default function ProcessScreen() {
             </Button>
           )}
           {isProcessing && (
-             <ProgressBar progress={progress} color="#14B8A6" style={styles.progressBar} />
+             <View>
+               <ProgressBar progress={progress} color="#14B8A6" style={styles.progressBar} />
+               <Text style={styles.progressText}>{Math.round(progress * 100)}% Complete</Text>
+             </View>
           )}
         </Card.Content>
       </Card>
 
       <View style={[styles.card, { flex: 1, minHeight: 300, backgroundColor: '#090D16', overflow: 'hidden' }]}>
         <Text style={[styles.cardTitle, { paddingHorizontal: 16, paddingTop: 16, color: '#94A3B8', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 }]}>Processing Log</Text>
-        <ScrollView 
+        <ScrollView
           ref={scrollViewRef}
           onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           style={styles.logArea}
@@ -192,6 +209,13 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     marginTop: 15,
+  },
+  progressText: {
+    color: '#14B8A6',
+    fontSize: 12,
+    fontWeight: 'bold',
+    textAlign: 'right',
+    marginTop: 6,
   },
   logArea: {
     backgroundColor: '#090D16', // Deep dark theme for console logs

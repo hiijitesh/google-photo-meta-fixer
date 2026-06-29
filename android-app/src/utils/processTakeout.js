@@ -44,24 +44,49 @@ function getExifDateString(unixTimestampStr) {
   return `${Y}:${M}:${D} ${h}:${m}:${s}`;
 }
 
-// Match json file to a media file
-function findCompanionMedia(jsonUri, allFiles) {
-  // Google Takeout usually appends .json to the filename, e.g., image.jpg.json or image.json
-  const base1 = jsonUri.replace(/\\.json$/i, ''); // image.jpg
-  let base2 = jsonUri.replace(/\\.[^.]+\\.json$/i, ''); // maybe handles image.jpg.json -> image if extensions are stripped
-
-  // Exact match
-  if (allFiles.includes(base1) && !base1.endsWith('/')) {
-    return base1;
+// Match json file to a media file, accounting for Google Takeout truncations and extensions
+function findCompanionMedia(jsonUri, mediaFilesSet) {
+  // 1. Strip the .json suffix
+  let base = jsonUri.replace(/\.json$/i, '');
+  
+  // 2. Strip supplemental metadata extensions (.suppleme or .supplemental-metadata)
+  base = base.replace(/\.suppleme(ntal-metadata)?$/i, '');
+  base = base.replace(/\.metadata$/i, '');
+  
+  // 3. Check exact match
+  if (mediaFilesSet.has(base)) {
+    return base;
+  }
+  
+  // 4. Try appending common media extensions if Google Takeout stripped them in the JSON name
+  const extensions = ['.jpg', '.jpeg', '.png', '.heic', '.webp', '.mp4', '.gif'];
+  for (const ext of extensions) {
+    if (mediaFilesSet.has(base + ext)) {
+      return base + ext;
+    }
+    if (mediaFilesSet.has(base + ext.toUpperCase())) {
+      return base + ext.toUpperCase();
+    }
   }
 
-  // Sometimes Takeout truncates extensions or adds (1)
-  const filenameWithoutJson = jsonUri.split('/').pop().replace(/\\.json$/i, '');
-  // Simplified matching for MVP: just try removing .json
+  // 5. Handle Takeout's 46-character name truncation (e.g. longname_CO.json matching longname_COVER.jpg)
+  const jsonFilename = jsonUri.split('/').pop().replace(/\.json$/i, '').replace(/\.suppleme(ntal-metadata)?$/i, '');
+  const dirPath = jsonUri.substring(0, jsonUri.lastIndexOf('/') + 1);
+  
+  for (const mediaUri of mediaFilesSet) {
+    if (mediaUri.startsWith(dirPath)) {
+      const mediaFilename = mediaUri.substring(dirPath.length);
+      // Check if media filename starts with the truncated JSON name
+      if (mediaFilename.startsWith(jsonFilename) || jsonFilename.startsWith(mediaFilename.split('.')[0])) {
+         return mediaUri;
+      }
+    }
+  }
+
   return null;
 }
 
-export async function processExtractedFiles(extractedDirUri, addLog, setProgress) {
+export async function processExtractedFiles(extractedDirUri, addLog, setProgress, outputDirUri) {
   console.log(`[DEBUG] processExtractedFiles started on: ${extractedDirUri}`);
   addLog('Scanning directories for files...');
   const allFiles = await walkDir(extractedDirUri);
@@ -82,21 +107,21 @@ export async function processExtractedFiles(extractedDirUri, addLog, setProgress
   
   for (let i = 0; i < jsonFiles.length; i++) {
     if (i % 10 === 0) {
-      setProgress(0.5 + (i / jsonFiles.length) * 0.5); // Second half of progress bar
+      setProgress(0.5 + (i / jsonFiles.length) * 0.3); // Scale metadata phase from 50% to 80%
       await new Promise(r => setTimeout(r, 10)); // Yield to UI thread
     }
 
     const jsonUri = jsonFiles[i];
 
     // Find companion media
-    const companionUri = jsonUri.replace(/\.json$/i, '');
+    const companionUri = findCompanionMedia(jsonUri, mediaFilesSet);
     if (i < 5) {
       console.log(`[DEBUG] Matching Attempt ${i}:`);
       console.log(`  jsonUri: ${jsonUri}`);
       console.log(`  companionUri: ${companionUri}`);
-      console.log(`  Exists in set: ${mediaFilesSet.has(companionUri)}`);
+      console.log(`  Match found: ${!!companionUri}`);
     }
-    if (!mediaFilesSet.has(companionUri)) {
+    if (!companionUri) {
       continue;
     }
 
@@ -153,6 +178,58 @@ export async function processExtractedFiles(extractedDirUri, addLog, setProgress
       failCount++;
       console.warn(`Failed to process ${companionUri}: ${e.message}`);
     }
+  }
+
+  if (outputDirUri) {
+    console.log(`[DEBUG] Copying files to SAF directory: ${outputDirUri}`);
+    addLog('Copying processed photos and videos to destination folder...');
+    const mediaArray = Array.from(mediaFilesSet);
+    for (let j = 0; j < mediaArray.length; j++) {
+      if (j % 5 === 0) {
+        setProgress(0.8 + (j / mediaArray.length) * 0.2); // Scale copying phase from 80% to 100%
+        await new Promise(r => setTimeout(r, 10)); // Yield to UI
+      }
+      const localUri = mediaArray[j];
+      try {
+        const fileName = localUri.split('/').pop();
+        let mimeType = 'image/jpeg';
+        const lower = fileName.toLowerCase();
+        if (lower.endsWith('.png')) mimeType = 'image/png';
+        else if (lower.endsWith('.gif')) mimeType = 'image/gif';
+        else if (lower.endsWith('.webp')) mimeType = 'image/webp';
+        else if (lower.endsWith('.heic')) mimeType = 'image/heic';
+        else if (lower.endsWith('.mp4')) mimeType = 'video/mp4';
+
+        console.log(`[DEBUG] Creating SAF file for: ${fileName}`);
+        const safFileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+          outputDirUri,
+          fileName,
+          mimeType
+        );
+        console.log(`[DEBUG] SAF file created at: ${safFileUri}`);
+
+        try {
+          // Try native copy first
+          await FileSystem.copyAsync({
+            from: localUri,
+            to: safFileUri
+          });
+          console.log(`[DEBUG] Natively copied ${fileName} successfully`);
+        } catch (err) {
+          console.warn(`[DEBUG] Native copy failed, attempting base64 fallback for ${fileName}:`, err.message);
+          const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: FileSystem.EncodingType.Base64 });
+          await FileSystem.StorageAccessFramework.writeAsStringAsync(
+            safFileUri,
+            base64,
+            { encoding: FileSystem.EncodingType.Base64 }
+          );
+          console.log(`[DEBUG] Base64 fallback write succeeded for ${fileName}`);
+        }
+      } catch (copyErr) {
+        console.error(`[DEBUG] Failed to copy ${localUri} to SAF:`, copyErr);
+      }
+    }
+    addLog(`Successfully copied ${mediaArray.length} files to destination folder.`);
   }
 
   setProgress(1.0);

@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Provider as PaperProvider, MD3LightTheme as DefaultTheme } from 'react-native-paper';
+import { Provider as PaperProvider, MD3DarkTheme } from 'react-native-paper';
 
 import HomeScreen from './src/screens/HomeScreen';
 import WebViewScreen from './src/screens/WebViewScreen';
@@ -10,11 +10,13 @@ import ProcessScreen from './src/screens/ProcessScreen';
 const Stack = createNativeStackNavigator();
 
 const theme = {
-  ...DefaultTheme,
+  ...MD3DarkTheme,
   colors: {
-    ...DefaultTheme.colors,
-    primary: '#1976D2',
-    secondary: '#424242',
+    ...MD3DarkTheme.colors,
+    primary: '#6366F1', // Indigo
+    secondary: '#14B8A6', // Cyan
+    background: '#0F172A',
+    surface: '#1E293B',
   },
 };
 
@@ -22,11 +24,25 @@ export default function App() {
   return (
     <PaperProvider theme={theme}>
       <NavigationContainer>
-        <Stack.Navigator initialRouteName="Home">
+        <Stack.Navigator 
+          initialRouteName="Home"
+          screenOptions={{
+            headerStyle: {
+              backgroundColor: '#1E293B', // Slate 800
+            },
+            headerTintColor: '#F8FAFC', // Slate 50
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
+            contentStyle: {
+              backgroundColor: '#0F172A', // Slate 900
+            }
+          }}
+        >
           <Stack.Screen 
             name="Home" 
             component={HomeScreen} 
-            options={{ title: 'Google Photos Cleaner' }} 
+            options={{ title: 'Photos Cleaner' }} 
           />
           <Stack.Screen 
             name="WebView" 

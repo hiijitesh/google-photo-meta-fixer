@@ -3,6 +3,7 @@ import piexif from 'piexifjs';
 
 // Walk a directory recursively and return all files
 async function walkDir(dirUri) {
+  console.log(`[DEBUG] walkDir scanning: ${dirUri}`);
   let results = [];
   const dirInfo = await FileSystem.getInfoAsync(dirUri);
   if (!dirInfo.isDirectory) {
@@ -10,8 +11,9 @@ async function walkDir(dirUri) {
   }
 
   const contents = await FileSystem.readDirectoryAsync(dirUri);
+  console.log(`[DEBUG] Directory ${dirUri} contains ${contents.length} items`);
   for (let i = 0; i < contents.length; i++) {
-    if (i % 20 === 0) await new Promise(r => setTimeout(r, 10)); // Yield to UI
+    if (i % 5 === 0) await new Promise(r => setTimeout(r, 1)); // Yield more frequently to keep UI responsive
     const item = contents[i];
     const itemUri = `${dirUri}${dirUri.endsWith('/') ? '' : '/'}${item}`;
     const itemInfo = await FileSystem.getInfoAsync(itemUri);
@@ -60,17 +62,24 @@ function findCompanionMedia(jsonUri, allFiles) {
 }
 
 export async function processExtractedFiles(extractedDirUri, addLog, setProgress) {
+  console.log(`[DEBUG] processExtractedFiles started on: ${extractedDirUri}`);
   addLog('Scanning directories for files...');
   const allFiles = await walkDir(extractedDirUri);
+  console.log(`[DEBUG] walkDir finished. Total files found: ${allFiles.length}`);
 
   const jsonFiles = allFiles.filter(f => f.toLowerCase().endsWith('.json') && !f.includes('metadata.json'));
   const mediaFilesSet = new Set(allFiles.filter(f => !f.toLowerCase().endsWith('.json') && !f.toLowerCase().endsWith('.html')));
 
+  console.log(`[DEBUG] JSON sidecars: ${jsonFiles.length}, Media files: ${mediaFilesSet.size}`);
   addLog(`Found ${jsonFiles.length} JSON sidecars and ${mediaFilesSet.size} media files.`);
 
   let successCount = 0;
   let failCount = 0;
 
+  console.log(`[DEBUG] Starting JSON iteration...`);
+  console.log(`[DEBUG] Sample JSON Files:`, jsonFiles.slice(0, 5));
+  console.log(`[DEBUG] Sample Media Files:`, Array.from(mediaFilesSet).slice(0, 5));
+  
   for (let i = 0; i < jsonFiles.length; i++) {
     if (i % 10 === 0) {
       setProgress(0.5 + (i / jsonFiles.length) * 0.5); // Second half of progress bar
@@ -81,6 +90,12 @@ export async function processExtractedFiles(extractedDirUri, addLog, setProgress
 
     // Find companion media
     const companionUri = jsonUri.replace(/\.json$/i, '');
+    if (i < 5) {
+      console.log(`[DEBUG] Matching Attempt ${i}:`);
+      console.log(`  jsonUri: ${jsonUri}`);
+      console.log(`  companionUri: ${companionUri}`);
+      console.log(`  Exists in set: ${mediaFilesSet.has(companionUri)}`);
+    }
     if (!mediaFilesSet.has(companionUri)) {
       continue;
     }

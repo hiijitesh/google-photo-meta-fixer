@@ -18,6 +18,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       }
     },
+    "newArchEnabled": false,
     "web": {
       "favicon": "./assets/favicon.png"
     }

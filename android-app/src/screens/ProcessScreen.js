@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { View, StyleSheet, ScrollView, Platform } from 'react-native';
 import { Button, Text, Card, Title, ProgressBar } from 'react-native-paper';
 import * as DocumentPicker from 'expo-document-picker';
@@ -26,7 +26,10 @@ export default function ProcessScreen() {
     }, [isProcessing])
   );
 
+  const scrollViewRef = useRef(null);
+
   const addLog = (msg) => {
+    console.log(`[UI LOG] ${msg}`);
     setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
   };
 
@@ -81,14 +84,16 @@ export default function ProcessScreen() {
           addLog(`[DEBUG] Extracting native zip using react-native-zip-archive...`);
           await sleep(10);
           
-          await unzip(asset.uri, targetDir);
+          const zipPath = asset.uri.replace('file://', '');
+          const destPath = targetDir.replace('file://', '');
+          await unzip(zipPath, destPath);
           
           console.log(`[DEBUG] Extraction complete for ${asset.name}`);
           addLog(`Extracted successfully.`);
           await sleep(10);
         } catch (err) {
           console.error(`[DEBUG] Error during extraction:`, err);
-          addLog(`Extraction failed: ${err.message}`);
+          addLog(`Extraction failed: ${err.message}\nStack: ${err.stack}\nDetails: ${JSON.stringify(err)}`);
           await sleep(10);
         }
         setProgress(0.1 + ((i + 1) / assets.length) * 0.4); // first 50% for extraction
@@ -103,7 +108,7 @@ export default function ProcessScreen() {
 
     } catch (error) {
       console.error(`[DEBUG] Global handlePickAndProcess error:`, error);
-      addLog(`[DEBUG] Global Error: ${error.message}`);
+      addLog(`[DEBUG] Global Error: ${error.message}\nStack: ${error.stack}\nDetails: ${JSON.stringify(error)}`);
       setIsProcessing(false);
     }
   };
@@ -132,14 +137,19 @@ export default function ProcessScreen() {
         </Card.Content>
       </Card>
 
-      <Card style={[styles.card, { flex: 1, minHeight: 300 }]}>
-        <Text style={[styles.cardTitle, { paddingHorizontal: 16, paddingTop: 16 }]}>Processing Log</Text>
-        <ScrollView style={[styles.logArea, { marginHorizontal: 16, marginBottom: 16 }]}>
+      <View style={[styles.card, { flex: 1, minHeight: 300, backgroundColor: '#090D16', overflow: 'hidden' }]}>
+        <Text style={[styles.cardTitle, { paddingHorizontal: 16, paddingTop: 16, color: '#94A3B8', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 }]}>Processing Log</Text>
+        <ScrollView 
+          ref={scrollViewRef}
+          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+          style={styles.logArea}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
+        >
           {logs.map((log, i) => (
             <Text key={i} style={styles.logText}>{log}</Text>
           ))}
         </ScrollView>
-      </Card>
+      </View>
     </View>
   );
 }
@@ -185,10 +195,6 @@ const styles = StyleSheet.create({
   },
   logArea: {
     backgroundColor: '#090D16', // Deep dark theme for console logs
-    borderWidth: 1,
-    borderColor: '#1E293B',
-    padding: 12,
-    borderRadius: 8,
     flex: 1,
   },
   logText: {

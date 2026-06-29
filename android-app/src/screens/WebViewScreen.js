@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { View, StyleSheet, Alert, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { userScript } from '../userscript';
 
 export default function WebViewScreen({ navigation }) {
@@ -77,6 +77,7 @@ export default function WebViewScreen({ navigation }) {
         sharedCookiesEnabled={true}
         thirdPartyCookiesEnabled={true}
         onLoadEnd={() => setLoading(false)}
+        userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         style={styles.webview}
       />
     </View>

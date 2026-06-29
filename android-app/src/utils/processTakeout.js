@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import piexif from 'piexifjs';
 
 // Walk a directory recursively and return all files
@@ -10,7 +10,9 @@ async function walkDir(dirUri) {
   }
 
   const contents = await FileSystem.readDirectoryAsync(dirUri);
-  for (const item of contents) {
+  for (let i = 0; i < contents.length; i++) {
+    if (i % 20 === 0) await new Promise(r => setTimeout(r, 10)); // Yield to UI
+    const item = contents[i];
     const itemUri = `${dirUri}${dirUri.endsWith('/') ? '' : '/'}${item}`;
     const itemInfo = await FileSystem.getInfoAsync(itemUri);
     if (itemInfo.isDirectory) {
@@ -62,19 +64,24 @@ export async function processExtractedFiles(extractedDirUri, addLog, setProgress
   const allFiles = await walkDir(extractedDirUri);
 
   const jsonFiles = allFiles.filter(f => f.toLowerCase().endsWith('.json') && !f.includes('metadata.json'));
-  const mediaFiles = allFiles.filter(f => !f.toLowerCase().endsWith('.json') && !f.toLowerCase().endsWith('.html'));
+  const mediaFilesSet = new Set(allFiles.filter(f => !f.toLowerCase().endsWith('.json') && !f.toLowerCase().endsWith('.html')));
 
-  addLog(`Found ${jsonFiles.length} JSON sidecars and ${mediaFiles.length} media files.`);
+  addLog(`Found ${jsonFiles.length} JSON sidecars and ${mediaFilesSet.size} media files.`);
 
   let successCount = 0;
   let failCount = 0;
 
   for (let i = 0; i < jsonFiles.length; i++) {
+    if (i % 10 === 0) {
+      setProgress(0.5 + (i / jsonFiles.length) * 0.5); // Second half of progress bar
+      await new Promise(r => setTimeout(r, 10)); // Yield to UI thread
+    }
+
     const jsonUri = jsonFiles[i];
 
     // Find companion media
-    const companionUri = jsonUri.replace(/\\.json$/i, '');
-    if (!mediaFiles.includes(companionUri)) {
+    const companionUri = jsonUri.replace(/\.json$/i, '');
+    if (!mediaFilesSet.has(companionUri)) {
       continue;
     }
 
@@ -93,6 +100,10 @@ export async function processExtractedFiles(extractedDirUri, addLog, setProgress
 
       const exifDate = getExifDateString(ts);
       if (!exifDate) continue;
+
+      // Yield to UI before heavy Base64 and EXIF parsing
+      setProgress(0.5 + (i / jsonFiles.length) * 0.5);
+      await new Promise(r => setTimeout(r, 5));
 
       // Read JPEG as Base64 for piexif
       const base64Data = await FileSystem.readAsStringAsync(companionUri, { encoding: FileSystem.EncodingType.Base64 });
@@ -115,6 +126,9 @@ export async function processExtractedFiles(extractedDirUri, addLog, setProgress
       const exifbytes = piexif.dump(exifObj);
       const newDataUrl = piexif.insert(exifbytes, dataUrl);
 
+      // Yield to UI before heavy string split
+      await new Promise(r => setTimeout(r, 5));
+
       // Save back (strip data:image/jpeg;base64,)
       const newBase64 = newDataUrl.split(',')[1];
       await FileSystem.writeAsStringAsync(companionUri, newBase64, { encoding: FileSystem.EncodingType.Base64 });
@@ -123,10 +137,6 @@ export async function processExtractedFiles(extractedDirUri, addLog, setProgress
     } catch (e) {
       failCount++;
       console.warn(`Failed to process ${companionUri}: ${e.message}`);
-    }
-
-    if (i % 10 === 0) {
-      setProgress(0.5 + (i / jsonFiles.length) * 0.5); // Second half of progress bar
     }
   }
 

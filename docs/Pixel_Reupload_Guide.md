@@ -37,7 +37,7 @@ graph TD
 2. Open the album you want to process (e.g., `T2`).
 3. Click the **3 dots** in the top-right corner.
 4. Click **Download all**.
-5. Extract (unzip) the downloaded zip file into a local directory (e.g. `/Users/hiijitesh/Downloads/T2_Web`).
+5. Extract (unzip) the downloaded zip file into a local directory (e.g. `/path/to/your/photos`).
 
 > [!NOTE]
 > Web downloads preserve the original camera EXIF metadata inside the files. However, the filesystem modification dates (`mtime`) are reset to the download date and must be restored using `process backup`.
@@ -48,7 +48,7 @@ graph TD
 3. Extract each ZIP part into separate folders (e.g., `Takeout`, `Takeout-2`).
 4. **Merge** all parts into a single folder using rsync:
    ```bash
-   rsync -a "/Users/hiijitesh/Documents/Takeout-2/Google Photos/T2/" "/Users/hiijitesh/Documents/Takeout/Google Photos/T2/"
+   rsync -a "/path/to/Takeout-2/Google Photos/Album/" "/path/to/Takeout/Google Photos/Album/"
    ```
 5. Run the **Takeout** workflow (skip to Step 2B below) instead of Step 2.
 
@@ -62,10 +62,10 @@ To correct the filesystem dates of the web-downloaded files, run the `process ba
 
 ```bash
 # Using the script directly
-python3 cleaner.py process backup --csv T2-hiijitesh.csv --dir "/Users/hiijitesh/Downloads/T2_Web"
+python3 cleaner.py process backup --csv your_metadata.csv --dir "/path/to/your/photos"
 
 # Or using the globally installed CLI
-gp-cleaner process backup --csv T2-hiijitesh.csv --dir "/Users/hiijitesh/Downloads/T2_Web"
+gp-cleaner process backup --csv your_metadata.csv --dir "/path/to/your/photos"
 ```
 
 ---
@@ -75,10 +75,10 @@ Before deleting anything from the cloud, audit the directory against the CSV to 
 
 ```bash
 # Using the script directly
-python3 cleaner.py metadata verify-csv --csv T2-hiijitesh.csv --dir "/Users/hiijitesh/Downloads/T2_Web"
+python3 cleaner.py metadata verify-csv --csv your_metadata.csv --dir "/path/to/your/photos"
 
 # Or using the globally installed CLI
-gp-cleaner metadata verify-csv --csv T2-hiijitesh.csv --dir "/Users/hiijitesh/Downloads/T2_Web"
+gp-cleaner metadata verify-csv --csv your_metadata.csv --dir "/path/to/your/photos"
 ```
 
 * **Verify the output:** Look for a success rate close to 100% (e.g., `Matches: 585` or close to it, and `Photos not found in CSV: 0`). Once verified, you are **100% assured** that your local files are complete, correct, and ready.

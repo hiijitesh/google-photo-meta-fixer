@@ -56,25 +56,6 @@ gp-cleaner metadata fix-drive --remote gdrive:
 
 ---
 
-## 📱 React Native Android Companion App
-
-The repository includes a mobile companion app under the `android-app/` directory.
-
-To run it:
-1. Ensure **Node.js** (v18+) is installed.
-2. Navigate to the directory and install dependencies:
-   ```bash
-   cd android-app
-   npm install
-   ```
-3. Start Expo:
-   ```bash
-   npx expo start
-   ```
-4. Scan the QR code with the **Expo Go** app on your Android device to run the app.
-
----
-
 ## 🔧 CLI Command Reference
 
 All operations are run via the `gp-cleaner` CLI command:
@@ -96,3 +77,22 @@ For detailed commands, arguments, and advanced options, see the [CLI Reference G
 
 * For system design guidelines, codebase architecture, and coding rules, see [GEMINI.md](GEMINI.md).
 * For detailed algorithm explanations of Google Takeout matching logic, see [LEARNING.md](LEARNING.md).
+
+---
+
+## 📱 React Native Android Companion App
+
+The repository includes a mobile companion app under the `android-app/` directory.
+
+To run it:
+1. Ensure **Node.js** (v18+) is installed.
+2. Navigate to the directory and install dependencies:
+   ```bash
+   cd android-app
+   npm install
+   ```
+3. Start Expo:
+   ```bash
+   npx expo start
+   ```
+4. Scan the QR code with the **Expo Go** app on your Android device to run the app.

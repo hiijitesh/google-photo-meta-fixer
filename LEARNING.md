@@ -1,6 +1,6 @@
-# Learning Guide: Google Photos Takeout Metadata Merger Concepts & Logic
+# Learning Guide: Google Photo Meta Fixer - Takeout Metadata Merger Concepts & Logic
 
-This document explains the core software engineering concepts, matching algorithms, and execution optimization strategies used to build the **Google Takeout Metadata Merger** in this repository. Use this to understand the "why" and "how" behind the code!
+This document explains the core software engineering concepts, matching algorithms, and execution optimization strategies used to build the **Google Takeout Metadata Merger** inside **Google Photo Meta Fixer**. Use this to understand the "why" and "how" behind the code!
 
 ---
 

@@ -1,6 +1,6 @@
-# Google Photos Cleaner - AI Developer Instructions (`GEMINI.md`) 🤖💡
+# Google Photo Meta Fixer - AI Developer Instructions (`GEMINI.md`) 🤖💡
 
-This file outlines the architecture, coding standards, and execution constraints for LLMs modifying or extending the **Google Photos Cleaner** repository. Read this file fully before making any edits.
+This file outlines the architecture, coding standards, and execution constraints for LLMs modifying or extending the **Google Photo Meta Fixer** repository. Read this file fully before making any edits.
 
 ---
 

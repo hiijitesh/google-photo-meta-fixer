@@ -1,309 +1,415 @@
-# Google Photos Cleaner - Ultimate CLI Reference Guide 📸💻
+# Google Photo Meta Fixer — CLI Reference Guide
 
-This guide provides deep technical documentation, usage examples, workflow descriptions, and troubleshooting guides for the **Google Photos Cleaner** tool.
-
----
-
-## 🚀 1. High-Level Customer Workflow
-To back up and clean up your Google Photos metadata, follow these standard command sequences:
-
-### 📂 Google Takeout Workflow (In Order)
-If you are processing photos exported via **Google Takeout**:
-1.  **Merge Metadata JSONs into Photos:**
-    Updates EXIF headers and filesystem dates for all photos/videos and companion videos matching a Takeout JSON:
-    ```bash
-    gp-cleaner process takeout --dir "/path/to/Takeout"
-    ```
-2.  **Verify Takeout Merger:**
-    Audits the updated folders to ensure EXIF headers and filesystem timestamps are correct:
-    ```bash
-    gp-cleaner metadata verify-takeout
-    ```
-3.  **Verify Takeout Photos Against CSV (Optional):**
-    If you also have a custom browser CSV export, audit the Takeout photos against the CSV to confirm alignment:
-    ```bash
-    gp-cleaner metadata verify-csv --csv "path/to/metadata.csv" --dir "/path/to/Takeout/Google Photos/Album"
-    ```
-
-### 📊 GPTK Browser CSV Workflow (In Order)
-If you are processing space-consuming photos and using a browser-level **GPTK CSV** metadata export:
-1.  **Sync Consuming Photos (Cloud-to-Cloud):**
-    Identifies space-consuming files from your CSV and copies them cloud-to-cloud into your backup folder:
-    ```bash
-    gp-cleaner sync consuming --csv "path/to/metadata.csv" --remote gdrive:
-    ```
-2.  **Fix Local Photo Timestamps (EXIF + Filesystem):**
-    Matches downloaded photos to your CSV and writes the correct timestamps into both the EXIF headers and filesystem dates:
-    ```bash
-    gp-cleaner metadata fix-local --csv "path/to/metadata.csv" --dir "/path/to/photos"
-    ```
-3.  **Verify Local Timestamps Against CSV:**
-    Audits the folder to check if local photo times match the CSV:
-    ```bash
-    gp-cleaner metadata verify-csv --csv "path/to/metadata.csv" --dir "/path/to/photos"
-    ```
-4.  **Fix Drive Timestamps:**
-    Compares local timestamps against Google Drive files and aligns the remote timestamps via `rclone touch`:
-    ```bash
-    gp-cleaner metadata fix-drive --remote gdrive:
-    ```
+> **Version:** See [pyproject.toml](pyproject.toml) for the current release version.  
+> **Entrypoint:** `gp-cleaner`  
+> **Package:** `google-photo-meta-fixer` on [PyPI](https://pypi.org/project/google-photo-meta-fixer/)
 
 ---
 
-## ⚙️ 2. Prerequisites & Rclone Configuration
+## Table of Contents
 
-Because this tool performs cloud-to-cloud operations and metadata touching directly on Google Drive, you must configure `rclone` before running the commands.
+1. [Recommended Workflows](#-1-recommended-workflows)
+2. [Prerequisites & rclone Configuration](#-2-prerequisites--rclone-configuration)
+3. [Installation](#-3-installation)
+4. [CSV Input Specification](#-4-csv-input-specification)
+5. [Drive Index Cache Management](#-5-drive-index-cache-management)
+6. [Subcommand Reference](#-6-subcommand-reference)
+   - [sync](#-61-sync-subcommands)
+   - [metadata](#-62-metadata-subcommands)
+   - [process](#-63-process-subcommands)
+7. [Advanced Mechanics & Algorithms](#-7-advanced-mechanics--algorithms)
+8. [Troubleshooting](#-8-troubleshooting)
 
-### A. Install rclone
-Ensure `rclone` is installed on your macOS:
+---
+
+## 🗺️ 1. Recommended Workflows
+
+### Workflow A: Google Takeout
+
+Use when photos were downloaded via **Google Takeout** (includes sidecar `.json` files).
+
+| Step | Command | Required |
+|---|---|---|
+| Merge companion JSON into photos | `gp-cleaner process takeout --dir <dir>` | ✅ Yes |
+| Verify timestamps written correctly | `gp-cleaner metadata verify-takeout` | Optional |
+| Cross-check against CSV export | `gp-cleaner metadata verify-csv --csv <csv> --dir <dir>` | Optional |
+
+### Workflow B: Browser CSV Export (GPTK)
+
+Use when photos were downloaded directly from the browser and you have a GPTK CSV export.
+
+| Step | Command | Required |
+|---|---|---|
+| Write timestamps from CSV to EXIF + filesystem | `gp-cleaner metadata fix-local --csv <csv> --dir <dir>` | ✅ Yes |
+| Verify timestamps against CSV | `gp-cleaner metadata verify-csv --csv <csv> --dir <dir>` | Optional |
+| Sync storage-consuming files cloud-to-cloud | `gp-cleaner sync consuming --csv <csv> --remote <remote>` | Optional |
+| Align Drive file timestamps without re-upload | `gp-cleaner metadata fix-drive --remote <remote>` | Optional |
+
+---
+
+## ⚙️ 2. Prerequisites & rclone Configuration
+
+All cloud operations require `rclone` configured with a Google Drive remote.
+
+### Install rclone
+
 ```bash
+# macOS
 brew install rclone
+
+# Linux
+sudo apt install rclone
+# or via the official installer:
+curl https://rclone.org/install.sh | sudo bash
 ```
 
-### B. Configure your Google Drive Remote
-1. Launch the interactive configuration wizard:
-   ```bash
-   rclone config
-   ```
-2. Follow these prompts to set up a new remote:
-   *   Select `n` for **New remote**.
-   *   Name the remote (e.g., `gdrive`).
-   *   Select **Google Drive** (number in the list, e.g., `18`).
-   *   Leave `client_id` and `client_secret` blank (to use defaults), or supply your own Google API Console credentials for faster speeds.
-   *   Set the scope to `1` (**Full access to all files**).
-   *   Leave the root folder ID and service account file blank.
-   *   Allow auto-config (choose `y` to open the web browser and authorize).
-   *   Confirm the remote definition is correct.
-3. **Verify the connection:**
-   Make sure rclone can list your remote root:
-   ```bash
-   rclone lsd gdrive:
-   ```
+### Configure a Google Drive Remote
+
+```bash
+rclone config
+```
+
+Follow the interactive prompts:
+1. Select **`n`** — New remote.
+2. Name it (e.g., `gdrive`).
+3. Select **Google Drive** from the provider list.
+4. Leave `client_id` and `client_secret` blank (uses defaults).
+5. Set scope to **Full access** (`drive`).
+6. Allow browser-based auto-config (`y`).
+
+**Verify the connection:**
+```bash
+rclone lsd gdrive:
+```
+
+### Install exiftool
+
+Required for writing EXIF date tags inside photo and video files. Without it, only filesystem dates are updated.
+
+```bash
+brew install exiftool             # macOS
+sudo apt install libimage-exiftool-perl  # Debian/Ubuntu
+```
 
 ---
 
-## 📦 3. Installation & Executable Options
+## 📦 3. Installation
 
-### Method A: Standalone macOS Compiled Binary (Recommended)
-You can compile a single-file executable binary that doesn't depend on system Python installations:
+### Option A: Install from PyPI (Recommended)
+
 ```bash
-# Install PyInstaller
-pip install pyinstaller --break-system-packages --user
+pip install google-photo-meta-fixer
 
-# Compile the standalone binary
+# macOS (Homebrew-managed Python) or Linux:
+pip install google-photo-meta-fixer --break-system-packages
+```
+
+### Option B: Install from Source (Editable)
+
+```bash
+git clone https://github.com/hiijitesh/google-photo-meta-fixer.git
+cd google-photo-meta-fixer
+pip install -e . --break-system-packages
+```
+
+### Option C: Standalone Binary (macOS)
+
+Compile a single-file executable that does not depend on system Python:
+
+```bash
+pip install pyinstaller --break-system-packages
 pyinstaller --onefile cleaner.py --name gp-cleaner
-
-# Execute the binary directly
-./dist/gp-cleaner [command] [options]
-```
-
-### Method B: Locally Installed Python Package
-Install the project as an editable command (`gp-cleaner`):
-```bash
-pip install -e . --break-system-packages --user
-```
-Add the Python user bin directory to your `~/.zshrc` path:
-```bash
-export PATH="$PATH:$HOME/Library/Python/3.14/bin"
-```
-Once configured, run the tool globally from any directory:
-```bash
-gp-cleaner [command] [options]
+./dist/gp-cleaner --help
 ```
 
 ---
 
-## 📊 4. Google Photos Toolkit (GPTK) CSV Specification
+## 📊 4. CSV Input Specification
 
-The `sync consuming`, `process backup`, and `metadata verify-csv` commands parse metadata CSV files exported from the browser-level Google Photos Toolkit userscript.
+The `sync consuming`, `metadata fix-local`, and `metadata verify-csv` commands consume metadata CSV files exported from the [Google Photos Toolkit](https://github.com/xob0t/Google-Photos-Toolkit) userscript.
 
-The tool inspects the following columns:
-
-| Column Name | Type | Description |
-| :--- | :--- | :--- |
-| `fileName` | String | The exact name of the file (e.g., `IMG_20210728_123456.jpg`). |
+| Column | Type | Description |
+|:---|:---|:---|
+| `fileName` | String | Exact filename (e.g., `IMG_20210728_123456.jpg`). |
 | `takenAt` | String | UTC ISO 8601 creation timestamp (e.g., `2021-07-28T06:54:29.891Z`). |
-| `timezoneOffsetMs` | Integer | Local timezone offset in milliseconds (e.g., `19800000` for IST +05:30). |
-| `takesUpSpace` | Boolean | True if the photo consumes Google storage quota (Original Quality). |
-| `isOriginalQuality`| Boolean | True if the file has not been compressed by Google's "Storage Saver". |
-| `durationMs` | Integer | Present on video files; used to distinguish photos from video categories. |
+| `timezoneOffsetMs` | Integer | Local timezone offset in milliseconds (e.g., `19800000` = IST +05:30). |
+| `takesUpSpace` | Boolean | `true` if the photo consumes Google storage quota (Original Quality). |
+| `isOriginalQuality` | Boolean | `true` if the file is not compressed by Storage Saver. |
+| `durationMs` | Integer | Present on video files; used to distinguish photo vs. video categories. |
 
 ---
 
-## ⚡ 5. Automatic Cache Refreshing Flow
+## ⚡ 5. Drive Index Cache Management
 
-To prevent hitting Google Drive API rate-limiting thresholds, the tool reads local index files (`data/json/drive_index.json` and `data/json/drive_index_photo_backUp.json`).
+To avoid hitting Google Drive API rate limits, all cloud commands read from local JSON index files:
 
-Before executing any sync or cloud-metadata subcommand, the tool prompts you to refresh the cache:
-1.  **Prompt:** `Do you want to refresh the Google Drive index cache (drive_index.json)? (y/n) [y]:`
-2.  If you enter **`y` (or press Enter)**:
-    *   The tool runs `rclone lsjson -R "gdrive:"` to fetch all file nodes.
-    *   It overwrites the local cache JSON file.
-3.  If you enter **`n`**:
-    *   The tool skips the network scan and immediately reads the existing local cache file (executing in under a second).
+- `data/json/drive_index.json` — Full Drive listing.
+- `data/json/drive_index_photo_backUp.json` — `photos_backUp/` folder listing.
 
----
+**Before any sync/metadata command, always refresh your cache:**
+```bash
+rclone lsjson -R "gdrive:" > data/json/drive_index.json
+rclone lsjson -R "gdrive:photos_backUp" > data/json/drive_index_photo_backUp.json
+```
 
-## 🛠️ 6. Subcommand Reference & Workflows
-
-### 📂 6.1 The `sync` Commands
-
-#### 🔹 `gp-cleaner sync backup`
-*   **Purpose:** Copies original quality photos from the general Drive index into organized year-wise folders cloud-to-cloud.
-*   **Workflow:**
-    1.  Prompts to refresh `drive_index.json`.
-    2.  Loads `data/csv/metadata.csv`.
-    3.  Filters for rows where `takesUpSpace == "true"` and `isOriginalQuality == "true"`.
-    4.  Looks up each file in the Drive index to find its current path.
-    5.  Generates `rclone copyto` commands to move files to `photos_backUp/[Year]/[fileName]`.
-    6.  Runs commands in parallel.
-*   **Syntax:**
-    ```bash
-    gp-cleaner sync backup [--remote REMOTE_NAME]
-    ```
-
-
-
-#### 🔹 `gp-cleaner sync consuming`
-*   **Purpose:** Finds original quality photos listed in a CSV that exist on Drive but are missing from the `photos_backUp/` folder, and copies them to the backup folder cloud-to-cloud.
-*   **Syntax:**
-    ```bash
-    gp-cleaner sync consuming --csv CSV_PATH [--remote REMOTE_NAME]
-    ```
-*   **Example:**
-    ```bash
-    gp-cleaner sync consuming --csv "data/csv/o consuming album metadata.csv" --remote gdrive:
-    ```
-
-#### 🔹 `gp-cleaner sync upload-local`
-*   **Purpose:** Checks local folder files against the remote Drive index and uploads files that are missing.
-*   **Workflow:**
-    1.  Prompts to refresh `drive_index_photo_backUp.json`.
-    2.  Scans the local directory and computes the relative paths of all files.
-    3.  Identifies files that are not registered in the Drive backup cache.
-    4.  Writes missing relative paths to `logs/upload_manifest.txt`.
-    5.  Runs a single optimized multi-threaded `rclone copy` command using `--files-from logs/upload_manifest.txt`.
-*   **Syntax:**
-    ```bash
-    gp-cleaner sync upload-local --dir LOCAL_DIR --dest DEST_FOLDER [--remote REMOTE_NAME]
-    ```
-*   **Example:**
-    ```bash
-    gp-cleaner sync upload-local --dir "data/photos/GPH OP" --dest "O Consuming"
-    ```
+> The tool prompts you at startup to refresh the cache automatically. Press **Enter** to accept (`y` is the default).
 
 ---
 
-### 🔍 6.2 The `metadata` Commands
+## 🛠️ 6. Subcommand Reference
 
-#### 🔹 `gp-cleaner metadata fix-drive`
-*   **Purpose:** Directly corrects mismatched remote file modification dates on Google Drive to align with local files using `rclone touch`. No payload is re-uploaded.
-*   **Workflow:**
-    1.  Prompts to refresh `drive_index_photo_backUp.json`.
-    2.  Scans both `data/photos/photos_backUp` and `data/photos/Trashed Photos-3-001` for local files.
-    3.  Compares each Drive file's `ModTime` with the corresponding local file's `mtime`.
-    4.  Generates `rclone touch --timestamp` commands for all files with a drift greater than 2 seconds.
-    5.  Prompts you to confirm before executing.
-*   **Syntax:**
-    ```bash
-    gp-cleaner metadata fix-drive [--remote REMOTE_NAME]
-    ```
+### 📂 6.1 sync Subcommands
 
-#### 🔹 `gp-cleaner metadata fix-local`
-*   **Purpose:** Reads a GPTK metadata CSV and writes the correct `takenAt` timestamps directly into each local photo's EXIF headers (`DateTimeOriginal`, `CreateDate`, `ModifyDate`) **and** updates its filesystem modification time (`mtime`). Use this after downloading files locally to ensure dates are accurate before re-uploading.
-*   **Workflow:**
-    1.  Reads all entries from the given CSV file.
-    2.  Walks the local `--dir` directory to find all media files.
-    3.  Matches each file to its CSV row by filename (with fuzzy `-edited` / truncation tolerance).
-    4.  Updates filesystem `mtime` via `os.utime` for all matched files.
-    5.  If `exiftool` is installed, batch-writes EXIF date tags for all matched files.
-    6.  Reports a summary of matched vs unmatched files.
-*   **Syntax:**
-    ```bash
-    gp-cleaner metadata fix-local --csv CSV_PATH --dir LOCAL_DIR
-    ```
-*   **Example:**
-    ```bash
-    gp-cleaner metadata fix-local --csv "data/csv/T2-hiijitesh.csv" --dir "data/photos/GPH OP"
-    ```
-*   **Requirements:** `exiftool` must be installed for EXIF header writes (`brew install exiftool`). Filesystem timestamps are always updated regardless.
+#### `gp-cleaner sync backup`
 
-#### 🔹 `gp-cleaner metadata verify-csv`
-*   **Purpose:** Checks local photo files against a CSV file to verify if local filesystem `mtime` and EXIF creation tags match the expected `takenAt` timestamps.
-*   **Options:**
-    | Flag | Description |
-    | :--- | :--- |
-    | `--csv CSV_PATH` | Path to the GPTK metadata CSV file. |
-    | `--dir LOCAL_DIR` | Directory containing photos to audit. |
-    | `--show-missing` | Print the full list of files missing from the directory **and** extra files not in the CSV. |
-*   **Syntax:**
-    ```bash
-    gp-cleaner metadata verify-csv --csv CSV_PATH --dir LOCAL_DIR [--show-missing]
-    ```
-*   **Example:**
-    ```bash
-    gp-cleaner metadata verify-csv --csv "data/csv/T2-hiijitesh.csv" --dir "data/photos/photos_backUp" --show-missing
-    ```
+Copies original-quality photos from the general Drive index into organized year-wise `photos_backUp/[Year]/` folders, cloud-to-cloud.
 
-#### 🔹 `gp-cleaner metadata verify-takeout`
-*   **Purpose:** Audits files processed via Google Takeout against `data/json/takeout_match.json` to confirm filesystem dates and EXIF tags were successfully written.
-*   **Syntax:**
-    ```bash
-    gp-cleaner metadata verify-takeout
-    ```
+**Syntax:**
+```bash
+gp-cleaner sync backup [--remote REMOTE]
+```
+
+**Workflow:**
+1. Refreshes `drive_index.json`.
+2. Filters CSV rows where `takesUpSpace == true` and `isOriginalQuality == true`.
+3. Looks up each file in the Drive index to find its current path.
+4. Generates and executes parallel `rclone copyto` commands.
 
 ---
 
-### ⚙️ 6.3 The `process` Commands
+#### `gp-cleaner sync consuming`
 
-#### 🔹 `gp-cleaner process backup`
-*   **Purpose:** Matches local photos inside `photos_backUp/` with CSV timestamps and corrects local filesystem dates (`mtime`).
-*   **Syntax:**
-    ```bash
-    gp-cleaner process backup [--csv [CSV ...]] [--dir [DIR ...]]
-    ```
-*   **Example:**
-    ```bash
-    gp-cleaner process backup --csv "data/csv/metadata.csv" --dir "data/photos/photos_backUp"
-    ```
+Finds original-quality photos listed in a CSV that exist on Drive but are absent from `photos_backUp/`, then copies them cloud-to-cloud.
 
+**Syntax:**
+```bash
+gp-cleaner sync consuming --csv CSV_PATH [--remote REMOTE]
+```
 
+**Example:**
+```bash
+gp-cleaner sync consuming --csv "data/csv/consuming_album.csv" --remote gdrive:
+```
 
-#### 🔹 `gp-cleaner process takeout`
-*   **Purpose:** Matches companion JSON metadata files to photos/videos in a Google Takeout folder and updates EXIF headers and filesystem modification times.
-*   **Syntax:**
-    ```bash
-    gp-cleaner process takeout --dir TAKEOUT_DIR
-    ```
-*   **Example:**
-    ```bash
-    gp-cleaner process takeout --dir "/Users/hiijitesh/Downloads/Takeout"
-    ```
+---
+
+#### `gp-cleaner sync upload-local`
+
+Compares a local folder against the Drive index and uploads only missing files using a single optimized multi-threaded `rclone copy` invocation.
+
+**Syntax:**
+```bash
+gp-cleaner sync upload-local --dir LOCAL_DIR --dest DEST_FOLDER [--remote REMOTE]
+```
+
+**Example:**
+```bash
+gp-cleaner sync upload-local --dir "data/photos/GPH OP" --dest "O Consuming"
+```
+
+**Workflow:**
+1. Refreshes `drive_index_photo_backUp.json`.
+2. Scans local directory for all files.
+3. Identifies files not present in the Drive cache.
+4. Writes missing paths to `logs/upload_manifest.txt`.
+5. Runs `rclone copy --files-from logs/upload_manifest.txt --transfers 10 --checkers 16`.
+
+---
+
+### 🔍 6.2 metadata Subcommands
+
+#### `gp-cleaner metadata fix-local`
+
+Reads a GPTK CSV and writes correct `takenAt` timestamps into each photo's EXIF headers (`DateTimeOriginal`, `CreateDate`, `ModifyDate`) **and** updates filesystem `mtime`.
+
+**Syntax:**
+```bash
+gp-cleaner metadata fix-local --csv CSV_PATH --dir LOCAL_DIR
+```
+
+**Example:**
+```bash
+gp-cleaner metadata fix-local --csv "data/csv/metadata.csv" --dir "data/photos/GPH OP"
+```
+
+**Requirements:** `exiftool` must be installed for EXIF writes. Filesystem timestamps are updated regardless.
+
+**Workflow:**
+1. Reads all entries from the CSV.
+2. Walks `--dir` and builds a filename-to-path index.
+3. Matches files by filename with fuzzy tolerance (`-edited`, truncation).
+4. Updates `mtime` via `os.utime`.
+5. Batch-writes EXIF tags via `exiftool` if available.
+6. Reports matched vs. unmatched summary.
+
+---
+
+#### `gp-cleaner metadata fix-drive`
+
+Corrects mismatched modification dates on Google Drive files to align with local files using `rclone touch`. No payload is re-uploaded.
+
+**Syntax:**
+```bash
+gp-cleaner metadata fix-drive [--remote REMOTE]
+```
+
+**Workflow:**
+1. Refreshes `drive_index_photo_backUp.json`.
+2. Scans local backup directories for media files.
+3. Compares each Drive file's `ModTime` with the local file's `mtime`.
+4. Generates `rclone touch --timestamp` commands for all files with drift > 2 seconds.
+5. Prompts for confirmation before executing.
+
+---
+
+#### `gp-cleaner metadata verify-csv`
+
+Audits local photo EXIF timestamps and filesystem dates against a GPTK CSV to confirm `fix-local` was applied correctly.
+
+**Syntax:**
+```bash
+gp-cleaner metadata verify-csv --csv CSV_PATH --dir LOCAL_DIR [--show-missing]
+```
+
+| Flag | Description |
+|:---|:---|
+| `--csv CSV_PATH` | Path to the GPTK metadata CSV file. |
+| `--dir LOCAL_DIR` | Directory containing photos to audit. |
+| `--show-missing` | Print files missing from the directory and extra files not in the CSV. |
+
+**Example:**
+```bash
+gp-cleaner metadata verify-csv --csv "data/csv/metadata.csv" --dir "data/photos/photos_backUp" --show-missing
+```
+
+---
+
+#### `gp-cleaner metadata verify-takeout`
+
+Audits files processed via `process takeout` against `data/json/takeout_match.json` to confirm EXIF tags and filesystem dates were successfully written.
+
+**Syntax:**
+```bash
+gp-cleaner metadata verify-takeout
+```
+
+---
+
+### ⚙️ 6.3 process Subcommands
+
+#### `gp-cleaner process takeout`
+
+Recursively walks a Google Takeout export directory, matches companion `.json` sidecar files to their photos/videos using fuzzy matching, and writes GPS, description, and timestamp metadata back into the files.
+
+**Syntax:**
+```bash
+gp-cleaner process takeout --dir TAKEOUT_DIR
+```
+
+**Example:**
+```bash
+gp-cleaner process takeout --dir "/Users/you/Downloads/Takeout/Google Photos"
+```
+
+**Handled automatically:**
+- Google name truncation (`very_long_photo_n.jpg.json` → `very_long_photo_name.jpg`)
+- Supplemental metadata suffixes (`.supp.json`, `.supplemental-metadata.json`)
+- Bracket-shift duplicates (`photo.jpg(1).json` → `photo(1).jpg`)
+- Double-dot filenames (`photo.jpg..json` → `photo.jpg`)
+- Android screenshot formats (`com.miui.gallery_*.jpg`)
+
+**Output logs:**
+- `data/json/takeout_match.json` — All matched files and their applied timestamps.
+- `data/json/takeout_unmatched.json` — Any JSONs that could not be matched (empty `[]` on a clean run).
+
+---
+
+#### `gp-cleaner process backup`
+
+Matches local photos inside `photos_backUp/` with CSV timestamps and corrects local filesystem dates (`mtime`).
+
+**Syntax:**
+```bash
+gp-cleaner process backup [--csv [CSV ...]] [--dir [DIR ...]]
+```
+
+**Example:**
+```bash
+gp-cleaner process backup --csv "data/csv/metadata.csv" --dir "data/photos/photos_backUp"
+```
 
 ---
 
 ## 🧠 7. Advanced Mechanics & Algorithms
 
-### A. Fuzzy Filename Matching (Google Takeout)
-Google Takeout companion JSON files often suffix filenames or truncate characters (e.g. `my_extremely_long_photo_name.jpg` matching `my_extremely_long_photo_n.jpg.json`).
-The matching algorithm resolves these using:
-1.  **Direct match:** File matches `[filename].json` or `[filename](1).json` directly.
-2.  **Truncation fallback:** Checks if the JSON name starts with the truncated filename prefix.
-3.  **Special characters removal:** Normalizes name shifts, double dots, and bracket increments.
+### Fuzzy Filename Matching (Takeout)
 
-### B. Parallel Rclone Command execution
-Instead of calling `subprocess.run` sequentially hundreds of times (which adds severe process overhead), the tool:
-1.  Writes all `rclone` actions into a shell script file at `logs/rclone_commands_auto.sh`.
-2.  Uses shell job controls (a sliding window of background PIDs) to launch up to 10 commands in parallel.
-3.  Streams logs to `logs/rclone_execution.log`.
+Google Takeout companion JSON files frequently deviate from the original filename. The matching algorithm resolves this via a four-stage fallback chain:
+
+1. **Exact match** — `filename.jpg` → `filename.jpg.json`
+2. **Bracket-shift** — `photo(1).jpg` → `photo.jpg(1).json`
+3. **Truncation fallback** — `my_long_name.jpg` → `my_long.jpg.json` (prefix match)
+4. **Special character normalization** — strips double dots, normalizes extension ordering
+
+### Parallel rclone Execution
+
+Mass rclone commands are parallelized via a sliding-window PID manager rather than sequential subprocesses:
+
+1. All `rclone` actions are written to `logs/rclone_commands_auto.sh`.
+2. A Python worker launches up to **10 concurrent background jobs**.
+3. Execution progress streams to `logs/rclone_execution.log`.
+
+You can also invoke this helper directly in custom scripts:
+```python
+from src.sync import run_rclone_commands
+run_rclone_commands(list_of_cmd_strings, max_jobs=10)
+```
 
 ---
 
 ## 🛠️ 8. Troubleshooting
 
-### Linter Warning: `Cannot find module src.sync`
-*   **Symptoms:** IDE language servers (like Pyright or Pylance) display import errors under lines like `from src.sync import ...`.
-*   **Fixes implemented:**
-    1.  An empty `src/__init__.py` has been created, establishing `src` as a proper Python package.
-    2.  `pyproject.toml` has been updated with settings for `pyright` and `ruff`.
-    3.  A symbolic link `src/src` has been created pointing to `src/` (`.`). The linter resolves the import path seamlessly.
+### IDE import errors: `Cannot find module src.sync`
+
+**Cause:** Pyright/Pylance cannot resolve the `src` package without an `__init__.py`.
+
+**Resolution:**
+- `src/__init__.py` exists and establishes `src` as a proper Python package.
+- `pyproject.toml` includes Pyright and Ruff settings that set `pythonPath` and `venvPath`.
+
+---
+
+### `rclone: command not found`
+
+**Cause:** `rclone` is not installed or not on `PATH`.
+
+**Resolution:**
+```bash
+brew install rclone    # macOS
+# Then verify:
+rclone --version
+```
+
+---
+
+### `exiftool: command not found`
+
+**Cause:** `exiftool` not installed. Tool falls back to filesystem-only date updates (EXIF tags are skipped).
+
+**Resolution:**
+```bash
+brew install exiftool                        # macOS
+sudo apt install libimage-exiftool-perl      # Debian/Ubuntu
+```
+
+---
+
+### Drive cache is stale / duplicate uploads occurring
+
+**Cause:** `data/json/drive_index*.json` is outdated.
+
+**Resolution:** Always refresh the cache before running sync commands:
+```bash
+rclone lsjson -R "gdrive:" > data/json/drive_index.json
+rclone lsjson -R "gdrive:photos_backUp" > data/json/drive_index_photo_backUp.json
+```

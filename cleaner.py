@@ -16,7 +16,7 @@ from src.metadata import (
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Google Photos Cleaner CLI - Manage Google Photos storage and metadata",
+        description="Google Photo Meta Fixer CLI - Manage Google Photos storage and metadata",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Available subcommands and their usage:

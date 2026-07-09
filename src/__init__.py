@@ -1,1 +1,1 @@
-# Package initialization for Google Photos Cleaner src module
+# Package initialization for Google Photo Meta Fixer src module

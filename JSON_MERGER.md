@@ -1,65 +1,89 @@
-# Guide: Google Takeout Metadata Merger
+# Google Takeout Metadata Merger Guide
 
-This subcommand recursively crawls a Google Takeout export directory, matches companion JSON metadata files to their respective photos/videos, and writes the photo taken times, descriptions, and GPS tags back into the files.
+> Part of **Google Photo Meta Fixer** — `gp-cleaner process takeout`
+
+This guide covers how the Takeout metadata merger works, what it handles automatically, how to verify results, and where output logs are stored.
 
 ---
 
-## ⚡ Quick Start
+## Overview
 
-### 1. Install Exiftool (Required for EXIF/GPS tags)
-To write metadata directly inside photo and video files, make sure `exiftool` is installed on your machine:
+When you export photos via **Google Takeout**, each media file is accompanied by a companion `.json` sidecar file containing the true creation timestamp, GPS coordinates, and description from the Google Photos database.
+
+The `process takeout` command:
+1. **Recursively walks** the Takeout export directory.
+2. **Fuzzy-matches** each sidecar JSON to its corresponding photo or video.
+3. **Writes metadata** back into the file: EXIF tags (`DateTimeOriginal`, GPS), filesystem `mtime`, and descriptions.
+
+---
+
+## Quick Start
+
+### 1. Install exiftool (required for EXIF/GPS writes)
+
 ```bash
-brew install exiftool
+brew install exiftool             # macOS
+sudo apt install libimage-exiftool-perl  # Debian/Ubuntu
 ```
-*(If `exiftool` is not installed, the tool will fall back to correcting only the filesystem modified dates).*
 
-### 2. Run the Command
-Run the command on your unzipped Google Takeout folder. Remember to **wrap the directory path in double quotes** if it contains spaces:
+> **Note:** If `exiftool` is not installed, the tool falls back to updating only filesystem modification dates — GPS and description tags will not be embedded.
+
+### 2. Run the command
+
 ```bash
-python3 cleaner.py process takeout --dir "/Users/hiijitesh/Downloads/Takeout/Google Photos"
+gp-cleaner process takeout --dir "/path/to/Takeout/Google Photos"
 ```
 
-### 3. Verify the Merger
-You can run the built-in verification tool at any time to audit the updated files against the match log and confirm that everything matches perfectly (both in filesystem timestamps and EXIF headers):
+### 3. Verify results
+
 ```bash
-python3 cleaner.py metadata verify-takeout
+gp-cleaner metadata verify-takeout
 ```
 
----
-
-## 🛠️ Features & Quirks Handled Automatically
-You don't need to rename or clean up anything beforehand. The script automatically handles:
-1. **Google Name Truncation:** Resolves cases where Google shortened a JSON name (e.g. matching `very_long_name_trun.jpg.json` with `very_long_name_truncated.jpg`).
-2. **Supplemental Metadata:** Matches `.supp.json` and `.supplemental-metadata.json` suffixes back to their original images.
-3. **Bracket Shift Duplicates:** Matches shifted numbers (e.g. matching `photo.jpg(1).json` with `photo(1).jpg`).
-4. **Double Dots:** Cleans up duplicate dots (e.g. matching `photo.jpg..json` with `photo.jpg`).
-5. **Android Package Formats:** Safely matches Android screenshots containing dots (e.g. `com.miui.gallery`).
-6. **UTC to Offset Handling:** Reads UTC timestamps from the JSON and properly translates them into Exif tags.
+This audits all processed files against `data/json/takeout_match.json` and confirms that both EXIF headers and filesystem timestamps match the expected values from the Takeout database.
 
 ---
 
-## 📋 Log Locations
-After execution, the script generates two index summaries in the `data/json/` directory:
-* **[takeout_match.json](file:///Users/hiijitesh/Documents/google-photos-cleaner/data/json/takeout_match.json):** A detailed list of all matched files, timestamps, and locations that were updated.
-* **[takeout_unmatched.json](file:///Users/hiijitesh/Documents/google-photos-cleaner/data/json/takeout_unmatched.json):** Any JSON files that could not be matched (will be empty `[]` on a perfect run).
+## What is Handled Automatically
+
+You do not need to rename or pre-process any files. The matcher resolves all of the following Google Takeout quirks automatically:
+
+| Quirk | Example (JSON → Media) |
+|:---|:---|
+| **Truncated names** | `very_long_photo_name_tr.jpg.json` → `very_long_photo_name_truncated.jpg` |
+| **Bracket-shift duplicates** | `photo.jpg(1).json` → `photo(1).jpg` |
+| **Supplemental metadata suffixes** | `photo.jpg.supp.json` → `photo.jpg` |
+| **Double dots** | `photo.jpg..json` → `photo.jpg` |
+| **Android screenshot formats** | `com.miui.gallery_20230401.jpg.json` → `com.miui.gallery_20230401.jpg` |
+| **UTC to local offset** | JSON UTC timestamps are correctly converted to local timezone for EXIF tags |
 
 ---
 
-## 🔍 How Verification Works (JSON vs. Filename Timestamps)
+## Output Logs
 
-When you run `verify-takeout`, it audits the files using the following logic:
+After execution, two index files are written to `data/json/`:
 
-### 1. Expected Time vs. Actual Time
-* **Expected Time:** The ground-truth timestamp extracted from the Google Photos Takeout JSON.
-* **Actual Time:** The timestamp currently on the photo file (filesystem modified time and internal EXIF headers).
-* The script confirms that the **Actual Time** on disk matches the **Expected Time** from the database log.
-
-### 2. Why we don't verify against the Filename Timestamp
-* **Missing Filename Timestamps:** Many exported photos (such as Snapchat images or custom-named files, e.g., `Snapchat-1969078348.jpg`) have no dates or times in their filenames.
-* **Database Ground Truth:** Google Photos' internal database timestamp (found in the JSON) is the ultimate source of truth for where the photo sits on your timeline, even if the filename differs slightly due to upload delays or timezone shifts.
-* **Association by Name:** Filenames are strictly used to *match* the `.json` file to the correct photo, but the metadata inside the JSON is what is written and verified.
+| File | Contents |
+|:---|:---|
+| `data/json/takeout_match.json` | All successfully matched files, with applied timestamps and locations. |
+| `data/json/takeout_unmatched.json` | JSON files that could not be matched (empty `[]` on a perfect run). |
 
 ---
 
-## 🧠 Core System Design & Concepts Reference
-For a complete guide to the matching algorithms, Exiftool batch processing, and filesystem time updates with code examples, check out **[LEARNING.md](file:///Users/hiijitesh/Documents/google-photos-cleaner/LEARNING.md)**.
+## How Verification Works
+
+When you run `gp-cleaner metadata verify-takeout`, it compares:
+
+- **Expected Time** — Ground-truth timestamp from the Google Photos Takeout JSON (stored in `takeout_match.json` during processing).
+- **Actual Time** — Current filesystem `mtime` and EXIF `DateTimeOriginal` on the file on disk.
+
+### Why filenames are not used for timestamp verification
+
+Many exported files have no date embedded in their filename (e.g., `Snapchat-1969078348.jpg`). The filename is used solely to **locate and match** the correct JSON; the timestamp source of truth is always the **JSON database record** — not the filename.
+
+---
+
+## Further Reading
+
+- [LEARNING.md](LEARNING.md) — Deep dive into the fuzzy matching algorithms, exiftool batch processing, and filesystem time update patterns with code examples.
+- [cli_reference_guide.md](cli_reference_guide.md) — Full CLI subcommand reference and workflow tables.

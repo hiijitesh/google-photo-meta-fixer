@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Provider as PaperProvider, MD3DarkTheme } from 'react-native-paper';
 
 import HomeScreen from './src/screens/HomeScreen';
-import WebViewScreen from './src/screens/WebViewScreen';
+import CloudAuditScreen from './src/screens/CloudAuditScreen';
 import ProcessScreen from './src/screens/ProcessScreen';
 
 const Stack = createNativeStackNavigator();
@@ -28,14 +28,14 @@ export default function App() {
           initialRouteName="Home"
           screenOptions={{
             headerStyle: {
-              backgroundColor: '#1E293B', // Slate 800
+              backgroundColor: '#0A0F1D', // Midnight blue
             },
             headerTintColor: '#F8FAFC', // Slate 50
             headerTitleStyle: {
               fontWeight: 'bold',
             },
             contentStyle: {
-              backgroundColor: '#0F172A', // Slate 900
+              backgroundColor: '#0A0F1D', // Midnight blue
             }
           }}
         >
@@ -45,9 +45,9 @@ export default function App() {
             options={{ title: 'Photos Cleaner' }} 
           />
           <Stack.Screen 
-            name="WebView" 
-            component={WebViewScreen} 
-            options={{ title: 'Export Metadata' }} 
+            name="CloudAudit" 
+            component={CloudAuditScreen} 
+            options={{ title: 'Cloud Audit Center' }} 
           />
           <Stack.Screen 
             name="Process" 

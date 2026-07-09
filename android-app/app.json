@@ -2,6 +2,7 @@
   "expo": {
     "name": "Google Photos Cleaner",
     "slug": "google-photos-cleaner",
+    "scheme": "google-photos-cleaner",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -21,6 +22,9 @@
     "newArchEnabled": false,
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-web-browser"
+    ]
   }
 }

@@ -1,9 +1,6 @@
 # 📸 Google Photos → Google Drive Backup & Cleanup Tool
 
-A unified python-based toolkit to process, sync, and fix timestamps of Google Photos backups on Google Drive using `rclone`. This project is designed to identify and organize **original-quality files** that consume storage quota and manage Google Photos metadata.
-
-> [!NOTE]
-> **LLM Context**: This file serves as the primary system architectural overview. Read this first to understand the codebase structure, directory layout, and entry points before making changes.
+A unified python-based toolkit and React Native companion app to process, sync, and fix timestamps of Google Photos backups on Google Drive using `rclone`. This project is designed to identify and organize **original-quality files** that consume storage quota and manage Google Photos metadata.
 
 ---
 
@@ -22,33 +19,45 @@ To use this toolkit, you must have `rclone` installed and configured on your sys
    rclone lsd gdrive:
    ```
 
+To run the React Native Android companion app, you will also need:
+* **Node.js** (v18 or higher) and **npm** installed.
+* **Expo Go** app installed on your Android device (or an Android emulator configured via Android Studio).
+
 ---
 
-## 🚀 High-Level Customer Workflow
+## 🚀 High-Level End-User Guide
 
-To back up and clean up your Google Photos metadata, follow this standard sequence:
+Follow this standard sequence to backup, audit, and clean up your Google Photos storage:
 
-1. **Provide CSV Metadata:** Export your space-consuming photo/video metadata from your browser using the Google Photos Toolkit (GPTK) userscript as a CSV file.
-2. **Provide unzipped Google Takeout Folder:** Download your Google Takeout archive and extract it locally to a folder.
-3. **Configure Google Drive Remote & Target Folder:** Set up your `rclone` remote connection (e.g., `gdrive:`) and specify the target remote folder where the cloud-to-cloud copy and touch operations will execute.
-4. **Pixel Re-upload & Deletion Workflow (Free Storage Sync):** To safely clean up cloud storage and re-upload original files via Pixel phone, see the [Pixel Re-upload Guide](file:///Users/hiijitesh/Documents/google-photos-cleaner/docs/Pixel_Reupload_Guide.md).
+1. **Install Browser Userscript:**
+   - Install the **Tampermonkey** browser extension.
+   - Install the [google_photos_toolkit.user.js](file:///Users/hiijitesh/Documents/google-photos-cleaner/google_photos_toolkit.user.js) userscript (located in the root of this repo).
+   - Go to [photos.google.com](https://photos.google.com), filter by "Consuming" space / "Original" quality, and click **Export Metadata** to download a CSV file. Place it in `data/csv/`.
+
+2. **Google Drive Sync (Cloud-to-Cloud):**
+   - Run the python CLI or the companion Android app to compare your exported CSV metadata against your actual Google Drive.
+   - Automatically copy missing files cloud-to-cloud to your backup directory.
+
+3. **Verify & Fix Timestamps:**
+   - Run the metadata touch tools to align Drive modification timestamps with your photo's local EXIF/CSV datetimes using `rclone touch` without re-uploading payloads.
+
+4. **Pixel Re-upload & Deletion Workflow (Free Storage Sync):**
+   - To safely clean up cloud storage and re-upload original files via Pixel phone, see the [Pixel Re-upload Guide](file:///Users/hiijitesh/Documents/google-photos-cleaner/docs/Pixel_Reupload_Guide.md).
 
 ---
 
 ## 🏗️ Project Architecture & Code Structure
 
-The project has been refactored from a collection of single-purpose scripts into a consolidated Python application with a unified CLI entry point.
-
 ```
 .
 ├── cleaner.py                 # Main CLI entrypoint (argparse interface)
+├── google_photos_toolkit.user.js # Browser userscript for metadata export & Drive sync
 ├── src/                       # Core python modules
 │   ├── sync.py                # Cloud-to-cloud file backup copying logic
 │   ├── metadata.py            # Timestamp comparison and Drive fixing via 'rclone touch'
 │   └── process_backup.py      # Parses CSV & updates local file modification times
-├── js/
-│   └── extract_photos.js      # Chrome browser toolkit userscript helper
-├── data/                      # Contains inputs/caches (Ignored by Git except template/configs)
+├── android-app/               # React Native/Expo Android companion application
+├── data/                      # Contains inputs/caches (Ignored by Git except templates/configs)
 │   ├── csv/                   # Input metadata exports from Google Photos Toolkit (GPTK)
 │   └── json/                  # Drive file listings (drive_index_photo_backUp.json, etc.)
 └── logs/                      # Executables and commands logs (rclone commands lists)
@@ -153,10 +162,36 @@ gp-cleaner metadata verify-takeout
 
 ---
 
+## 📱 React Native Android Companion App
+
+The project includes an Expo-based Android companion application located under the `android-app/` directory. This app allows you to:
+1. View and index local photo directories.
+2. Connect to the Google Photos API to audit large storage-consuming files.
+3. Track and verify Google Takeout processing logs directly on your mobile device.
+
+### Running the App:
+
+1. **Install Dependencies:**
+   ```bash
+   cd android-app
+   npm install
+   ```
+
+2. **Start the Development Server:**
+   ```bash
+   npx expo start
+   ```
+
+3. **Open on Device:**
+   - Scan the QR code displayed in your terminal using the **Expo Go** app on your Android device.
+   - Alternatively, press `a` in your terminal to open it in a running Android emulator.
+
+---
+
 ## 🧠 Core System Design & Workflow
 
 ### 1. Data Source (Google Photos Toolkit)
-Because the official Google Photos API strips GPS/EXIF metadata and hides the `takesUpSpace` attribute, this toolkit relies on the **Google Photos Toolkit (GPTK)** userscript (`js/extract_photos.js`).
+Because the official Google Photos API strips GPS/EXIF metadata and hides the `takesUpSpace` attribute, this toolkit relies on the **Google Photos Toolkit (GPTK)** userscript ([google_photos_toolkit.user.js](file:///Users/hiijitesh/Documents/google-photos-cleaner/google_photos_toolkit.user.js) in the root).
 1. Run the userscript in Tampermonkey on [photos.google.com](https://photos.google.com).
 2. Filter for "Consuming" space and "Original" quality.
 3. Click "Export Metadata" to get `metadata.csv`.

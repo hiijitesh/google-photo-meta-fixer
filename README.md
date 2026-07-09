@@ -6,6 +6,18 @@ Identify and organize **original-quality files** that consume storage quota and 
 
 ---
 
+## 🔄 High-Level Storage Saving Workflow
+
+To identify and migrate space-consuming original images from Google Photos:
+
+1. **Filter & Group:** Use the [Google Photos Toolkit](https://github.com/xob0t/Google-Photos-Toolkit) userscript in your browser to find original-quality / storage-consuming photos, and **add them to a new Google Photos album**.
+2. **Export Metadata:** Use the toolkit to export the album's metadata as a **CSV file** and save it under `data/csv/`.
+3. **Download via Takeout:** Download the photos in that album using **Google Takeout** and extract the folder.
+4. **Fix Takeout Metadata:** Run `gp-cleaner process takeout` on the extracted folder to merge companion JSON metadata, restoring the true epoch timestamps into EXIF headers and filesystem dates.
+5. **Sync & Compare:** Use the `gp-cleaner sync` commands to compare your metadata CSV against Google Drive and sync/copy files cloud-to-cloud without duplicates.
+
+---
+
 ## 🚀 Quick Start Guide
 
 Follow these simple steps to set up and run the tool:

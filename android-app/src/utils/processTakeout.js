@@ -48,16 +48,16 @@ function getExifDateString(unixTimestampStr) {
 function findCompanionMedia(jsonUri, mediaFilesSet) {
   // 1. Strip the .json suffix
   let base = jsonUri.replace(/\.json$/i, '');
-  
+
   // 2. Strip supplemental metadata extensions (.suppleme or .supplemental-metadata)
   base = base.replace(/\.suppleme(ntal-metadata)?$/i, '');
   base = base.replace(/\.metadata$/i, '');
-  
+
   // 3. Check exact match
   if (mediaFilesSet.has(base)) {
     return base;
   }
-  
+
   // 4. Try appending common media extensions if Google Takeout stripped them in the JSON name
   const extensions = ['.jpg', '.jpeg', '.png', '.heic', '.webp', '.mp4', '.gif'];
   for (const ext of extensions) {
@@ -72,7 +72,7 @@ function findCompanionMedia(jsonUri, mediaFilesSet) {
   // 5. Handle Takeout's 46-character name truncation (e.g. longname_CO.json matching longname_COVER.jpg)
   const jsonFilename = jsonUri.split('/').pop().replace(/\.json$/i, '').replace(/\.suppleme(ntal-metadata)?$/i, '');
   const dirPath = jsonUri.substring(0, jsonUri.lastIndexOf('/') + 1);
-  
+
   for (const mediaUri of mediaFilesSet) {
     if (mediaUri.startsWith(dirPath)) {
       const mediaFilename = mediaUri.substring(dirPath.length);
@@ -104,7 +104,7 @@ export async function processExtractedFiles(extractedDirUri, addLog, setProgress
   console.log(`[DEBUG] Starting JSON iteration...`);
   console.log(`[DEBUG] Sample JSON Files:`, jsonFiles.slice(0, 5));
   console.log(`[DEBUG] Sample Media Files:`, Array.from(mediaFilesSet).slice(0, 5));
-  
+
   for (let i = 0; i < jsonFiles.length; i++) {
     if (i % 10 === 0) {
       setProgress(0.5 + (i / jsonFiles.length) * 0.3); // Scale metadata phase from 50% to 80%

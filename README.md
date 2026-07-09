@@ -12,8 +12,12 @@ To identify and migrate space-consuming original images from Google Photos:
 
 1. **Filter & Group:** Use the [Google Photos Toolkit](https://github.com/xob0t/Google-Photos-Toolkit) userscript in your browser to find original-quality / storage-consuming photos, and **add them to a new Google Photos album**.
 2. **Export Metadata:** Use the toolkit to export the album's metadata as a **CSV file** and save it under `data/csv/`.
-3. **Download via Takeout:** Download the photos in that album using **Google Takeout** and extract the folder.
-4. **Fix Takeout Metadata:** Run `gp-cleaner process takeout` on the extracted folder to merge companion JSON metadata, restoring the true epoch timestamps into EXIF headers and filesystem dates.
+3. **Download Files:** Choose one of two ways to download your photos:
+   - **Direct Browser Download:** Download photos directly from the Google Photos browser page.
+   - **Google Takeout:** Download the album via Google Takeout (comes with sidecar JSON files).
+4. **Fix Local Metadata:**
+   - **For Browser Downloads:** Run `gp-cleaner metadata fix-local --csv <csv_path> --dir <photos_dir>` to write correct datetimes from CSV to EXIF headers and filesystem dates.
+   - **For Takeout Downloads:** Run `gp-cleaner process takeout --dir <takeout_dir>` to merge sidecar JSON files back into photos.
 5. **Sync & Compare:** Use the `gp-cleaner sync` commands to compare your metadata CSV against Google Drive and sync/copy files cloud-to-cloud without duplicates.
 
 ---
@@ -42,13 +46,25 @@ pip install google-photo-meta-fixer --break-system-packages
 4. Filter by "Consuming" space / "Original" quality, and click **Export Metadata** to download a CSV file.
 5. Save the CSV file locally in `data/csv/`.
 
-### Step 4: Run the synchronization
+### Step 4: Fix local metadata (Depending on download method)
+* **If you downloaded photos directly from browser:** Write correct timestamps from CSV to photo EXIF headers and filesystem dates:
+  ```bash
+  gp-cleaner metadata fix-local --csv "data/csv/your_metadata.csv" --dir "path/to/photos"
+  ```
+  *(Optional: Verify CSV matching status: `gp-cleaner metadata verify-csv --csv "data/csv/your_metadata.csv" --dir "path/to/photos"`)*
+
+* **If you downloaded photos via Google Takeout:** Merge sidecar JSON metadata files back into your photos:
+  ```bash
+  gp-cleaner process takeout --dir "path/to/takeout_folder"
+  ```
+
+### Step 5: Run the synchronization
 Compare your metadata CSV file against your Google Drive index to identify original-quality backup files and sync them cloud-to-cloud:
 ```bash
 gp-cleaner sync consuming --csv "data/csv/your_metadata.csv" --remote gdrive:
 ```
 
-### Step 5: Fix timestamps in Google Drive (Optional)
+### Step 6: Fix timestamps in Google Drive (Optional)
 Align your Google Drive file modification dates with the original photo datetimes without downloading/uploading payloads (only needed if you want to fix timestamps of pre-existing files on Drive):
 ```bash
 gp-cleaner metadata fix-drive --remote gdrive:

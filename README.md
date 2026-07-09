@@ -25,7 +25,7 @@ pip install google-photo-meta-fixer --break-system-packages
 
 ### Step 3: Export your Google Photos metadata
 1. Install the **Tampermonkey** browser extension.
-2. Install the [google_photos_toolkit.user.js](google_photos_toolkit.user.js) userscript (located in the root of this repo).
+2. Install the userscript from the official [Google Photos Toolkit](https://github.com/xob0t/Google-Photos-Toolkit) repository.
 3. Open [photos.google.com](https://photos.google.com) in your browser.
 4. Filter by "Consuming" space / "Original" quality, and click **Export Metadata** to download a CSV file.
 5. Save the CSV file locally in `data/csv/`.

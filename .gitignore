@@ -2,6 +2,12 @@ Photos-3-001
 .DS_Store
 Blur_Photos-3-001
 Trashed Photos-3-001
+
+# Old git history backup from filter-repo operation — must never be committed
+history_backup_git/
+
+# IDE probe/state files
+ag-stop-probe.json
 Photos-3-001 (3)
 Photos-3-001 (4)
 img

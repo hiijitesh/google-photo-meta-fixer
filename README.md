@@ -48,8 +48,8 @@ Compare your metadata CSV file against your Google Drive index to identify origi
 gp-cleaner sync consuming --csv "data/csv/your_metadata.csv" --remote gdrive:
 ```
 
-### Step 5: Fix timestamps in Google Drive
-Align your Google Drive file modification dates with the original photo datetimes without downloading/uploading payloads:
+### Step 5: Fix timestamps in Google Drive (Optional)
+Align your Google Drive file modification dates with the original photo datetimes without downloading/uploading payloads (only needed if you want to fix timestamps of pre-existing files on Drive):
 ```bash
 gp-cleaner metadata fix-drive --remote gdrive:
 ```

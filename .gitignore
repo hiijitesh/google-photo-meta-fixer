@@ -19,3 +19,24 @@ dist/
 .eggs/
 Takeout-ish
 Takeout-ish/merged/
+
+# Data caches and user exports
+data/csv/*
+!data/csv/.gitkeep
+data/json/*
+!data/json/.gitkeep
+
+# Executions and commands logs
+logs/*
+!logs/.gitkeep
+
+# Temporary / Scratch scripts
+scratch/*
+!scratch/.gitkeep
+
+# Local IDE configuration files
+.idea/
+.vscode/
+
+# Local userscripts with custom name
+google_photos_toolkit.user_*.js

@@ -67,30 +67,43 @@ Follow this standard sequence to backup, audit, and clean up your Google Photos 
 
 ## 📦 Installation & Packaging
 
-You can run the tool directly as a script, install it locally as a system-wide CLI command, or compile it into a single standalone executable binary.
+You can install the package directly from PyPI, run it as a local script, or compile it into a standalone executable.
 
-### 1. Run Directly as a Script
+### 1. Install from PyPI (Recommended)
+Install the stable release directly:
+```bash
+pip install google-photo-meta-fixer
+
+# If using externally managed Python environment (e.g. macOS Homebrew)
+pip install google-photo-meta-fixer --break-system-packages
+```
+Once installed, invoke the CLI tool from any directory:
+```bash
+gp-cleaner [command] [options]
+```
+
+### 2. Run Directly as a Script
 Run directly from the repository root:
 ```bash
 python3 cleaner.py [command] [options]
 ```
 
-### 2. Install as a Local CLI Command
-You can install the tool as a system-wide CLI package (mapped to the command `gp-cleaner`):
+### 3. Install as a Local CLI Command (From Source)
+You can install the tool locally in editable mode:
 ```bash
 # Install in editable mode
 pip install -e .
 
-# If using an externally managed environment (e.g. Homebrew on macOS)
+# If using an externally managed environment
 pip install -e . --break-system-packages --user
 ```
-Once installed, you can invoke the tool from any directory:
+Once installed, invoke the tool:
 ```bash
 gp-cleaner [command] [options]
 ```
 
-### 3. Build a Standalone macOS Executable Binary
-To package the app into a single compiled binary that doesn't depend on system Python path settings:
+### 4. Build a Standalone macOS Executable Binary
+To package the app into a single compiled binary:
 
 1. Install PyInstaller:
    ```bash

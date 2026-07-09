@@ -58,8 +58,8 @@ pip install google-photo-meta-fixer --break-system-packages
   gp-cleaner process takeout --dir "path/to/takeout_folder"
   ```
 
-### Step 5: Run the synchronization
-Compare your metadata CSV file against your Google Drive index to identify original-quality backup files and sync them cloud-to-cloud:
+### Step 5: Run the synchronization (Optional)
+Compare your metadata CSV file against your Google Drive index to identify original-quality backup files and sync them cloud-to-cloud (only needed if you want to back up files to Google Drive):
 ```bash
 gp-cleaner sync consuming --csv "data/csv/your_metadata.csv" --remote gdrive:
 ```

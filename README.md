@@ -26,7 +26,7 @@ The official Google Photos API hides storage quota details, strips GPS metadata,
 
 To identify, fix, and optionally back up your original-quality Google Photos:
 
-1. **Filter & Group:** Use the [Google Photos Toolkit](https://github.com/xob0t/Google-Photos-Toolkit) userscript in your browser to find original-quality / storage-consuming photos, and **add them to a new Google Photos album**.
+1. **Filter & Group:** Use the [Google Photos Toolkit](https://github.com/xob0t/Google-Photos-Toolkit) userscript in your browser  with [Tampermonkey](https://www.tampermonkey.net/)to find original-quality / storage-consuming photos, and **add them to a new Google Photos album**.
 2. **Export Metadata:** Use the toolkit to export the album's metadata as a **CSV file** and save it under `data/csv/`.
 3. **Download Files:** Choose one of two ways to download your photos:
    - **Direct Browser Download** — Downloads photos directly from the Google Photos browser page.
@@ -61,7 +61,7 @@ pip install google-photo-meta-fixer --break-system-packages
 
 ### Step 3: Export your Google Photos metadata
 
-1. Install the **Tampermonkey** browser extension.
+1. Install the [**Tampermonkey**](https://www.tampermonkey.net/) browser extension.
 2. Install the userscript from the official [Google Photos Toolkit](https://github.com/xob0t/Google-Photos-Toolkit) repository.
 3. Open [photos.google.com](https://photos.google.com) in your browser.
 4. Filter by **"Consuming"** space / **"Original"** quality, and click **Export Metadata** to download a CSV file.

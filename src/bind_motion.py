@@ -99,6 +99,15 @@ def main(directory: str):
     """
     log.info("=== Google Motion Photo Binder ===")
 
+    import shutil
+
+    if shutil.which("exiftool") is None:
+        log.error(
+            "Error: exiftool is not installed. Motion photo binding requires exiftool."
+        )
+        log.error("To fix this, install exiftool: 'brew install exiftool'")
+        return
+
     dir_path = Path(directory)
     if not dir_path.is_dir():
         log.error(f"Directory not found: {directory}")

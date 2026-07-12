@@ -39,66 +39,73 @@ def match_files_to_csv(photo_files, csv_rows):
             {"index": i, "local_dt": local_dt, "row": row, "filename": filename}
         )
 
-    for filepath in photo_files:
+    unmatched_files = list(photo_files)
+
+    # Pass 1: Exact matches
+    remaining_unmatched = []
+    for filepath in unmatched_files:
         filename = os.path.basename(filepath)
         filename_lower = filename.lower()
-        matched_idx = -1
-
-        # 1. Exact / Case-insensitive
+        matched = False
         if filename_lower in csv_by_filename:
             for idx in csv_by_filename[filename_lower]:
                 if idx not in matched_csv_indices:
-                    matched_idx = idx
+                    matched_results[filepath] = (csv_rows[idx], idx)
+                    matched_csv_indices.add(idx)
+                    matched = True
                     break
+        if not matched:
+            remaining_unmatched.append(filepath)
+    unmatched_files = remaining_unmatched
 
-        # 2. Fuzzy match
-        if matched_idx == -1:
+    # Pass 2: Fuzzy matching
+    remaining_unmatched = []
+    for filepath in unmatched_files:
+        filename = os.path.basename(filepath)
+        matched = False
+        for entry in parsed_csv_rows:
+            idx = entry["index"]
+            if idx not in matched_csv_indices and names_match(
+                filename, entry["filename"]
+            ):
+                matched_results[filepath] = (csv_rows[idx], idx)
+                matched_csv_indices.add(idx)
+                matched = True
+                break
+        if not matched:
+            remaining_unmatched.append(filepath)
+    unmatched_files = remaining_unmatched
+
+    # Pass 3: Time-based matching
+    remaining_unmatched = []
+    for filepath in unmatched_files:
+        filename = os.path.basename(filepath)
+        matched = False
+        local_time_from_name = parse_filename_time(filename)
+        if local_time_from_name:
+            min_diff = float("inf")
+            matched_idx = -1
             for entry in parsed_csv_rows:
                 idx = entry["index"]
-                if idx not in matched_csv_indices and names_match(
-                    filename, entry["filename"]
-                ):
-                    matched_idx = idx
-                    break
+                if idx not in matched_csv_indices and entry["local_dt"]:
+                    diff = abs(
+                        (entry["local_dt"] - local_time_from_name).total_seconds()
+                    )
+                    if diff < min_diff and diff < 7200:
+                        min_diff = diff
+                        matched_idx = idx
+            if matched_idx != -1:
+                matched_results[filepath] = (csv_rows[matched_idx], matched_idx)
+                matched_csv_indices.add(matched_idx)
+                matched = True
+        if not matched:
+            remaining_unmatched.append(filepath)
 
-        # 3. Time-based match
-        if matched_idx == -1:
-            local_time_from_name = parse_filename_time(filename)
-            if local_time_from_name:
-                min_diff = float("inf")
-                for entry in parsed_csv_rows:
-                    idx = entry["index"]
-                    if idx not in matched_csv_indices and entry["local_dt"]:
-                        diff = abs(
-                            (entry["local_dt"] - local_time_from_name).total_seconds()
-                        )
-                        if diff < min_diff and diff < 7200:
-                            min_diff = diff
-                            matched_idx = idx
-
-        if matched_idx != -1:
-            matched_results[filepath] = (csv_rows[matched_idx], matched_idx)
-            matched_csv_indices.add(matched_idx)
-        else:
-            matched_results[filepath] = (None, -1)
+    # Pass 4: Unmatched
+    for filepath in remaining_unmatched:
+        matched_results[filepath] = (None, -1)
 
     return matched_results, matched_csv_indices
-
-
-def get_local_files(directory):
-    local_files = {}
-    if not os.path.isdir(directory):
-        return local_files
-
-    for root, dirs, files in os.walk(directory):
-        for file in files:
-            if file.startswith("."):
-                continue
-            path = os.path.join(root, file)
-            mtime = os.path.getmtime(path)
-            dt = datetime.fromtimestamp(mtime, tz=timezone.utc)
-            local_files[file] = {"path": path, "mtime": mtime, "dt": dt}
-    return local_files
 
 
 def cmd_metadata_fix_drive(remote_name):
@@ -109,12 +116,19 @@ def cmd_metadata_fix_drive(remote_name):
         log.error(f"Error: {drive_index_path} not found.")
         return
 
-    local_backup = get_local_files("data/photos/photos_backUp")
-    local_trash = get_local_files("data/photos/Trashed Photos-3-001")
-
     local_files = {}
-    local_files.update(local_backup)
-    local_files.update(local_trash)
+    for d in ["data/photos/photos_backUp", "data/photos/Trashed Photos-3-001"]:
+        if os.path.isdir(d):
+            local_files.update(
+                {
+                    f: datetime.fromtimestamp(
+                        os.path.getmtime(os.path.join(r, f)), tz=timezone.utc
+                    )
+                    for r, _, fs in os.walk(d)
+                    for f in fs
+                    if not f.startswith(".")
+                }
+            )
 
     with open(drive_index_path, "r", encoding="utf-8") as f:
         drive_data = json.load(f)
@@ -139,7 +153,7 @@ def cmd_metadata_fix_drive(remote_name):
                     drive_dt = datetime.fromisoformat(
                         drive_mtime_str.replace("Z", "+00:00")
                     )
-                    local_dt = local_files[name]["dt"]
+                    local_dt = local_files[name]
                     diff_seconds = abs((drive_dt - local_dt).total_seconds())
 
                     if diff_seconds > 2.0:
@@ -182,25 +196,17 @@ def cmd_metadata_fix_local(csv_path, photos_dir):
             "Warning: exiftool not installed. Only filesystem timestamps will be updated."
         )
 
-    # Read CSV
-    csv_rows = []
-    with open(csv_path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            csv_rows.append(row)
+    csv_rows = list(csv.DictReader(open(csv_path, "r", encoding="utf-8")))
     log.info(f"Loaded {len(csv_rows)} entries from CSV.")
 
-    # Scan directory
-    photo_files = []
-    for root, dirs, files in os.walk(photos_dir):
-        for file in files:
-            if (
-                file.startswith(".")
-                or file.endswith(".json")
-                or file.endswith("_original")
-            ):
-                continue
-            photo_files.append(os.path.join(root, file))
+    photo_files = [
+        os.path.join(root, file)
+        for root, dirs, files in os.walk(photos_dir)
+        for file in files
+        if not (
+            file.startswith(".") or file.endswith(".json") or file.endswith("_original")
+        )
+    ]
     log.info(f"Found {len(photo_files)} photos in directory.")
 
     exif_updates = []
@@ -273,13 +279,9 @@ def cmd_metadata_fix_local(csv_path, photos_dir):
                     os.remove(p)
 
     # 2. Update filesystem timestamps
-    mtime_updated = 0
-    for filepath, ts in filesystem_updates:
-        try:
-            os.utime(filepath, (ts, ts))
-            mtime_updated += 1
-        except Exception as e:
-            log.error(f"Failed to update mtime for {os.path.basename(filepath)}: {e}")
+    mtime_updated = sum(
+        1 for fp, ts in filesystem_updates if not os.utime(fp, (ts, ts))
+    )
     log.info(f"Filesystem timestamps updated for {mtime_updated} files.")
 
     log.info(
@@ -330,36 +332,18 @@ def cmd_metadata_verify_csv(csv_path, photos_dir):
         except:
             return {}
 
-    def parse_exif_time(time_str):
-        if not time_str:
-            return None
-        try:
-            clean_str = time_str.split("+")[0].split("-")[0].strip()
-            return datetime.strptime(clean_str, "%Y:%m:%d %H:%M:%S")
-        except:
-            return None
-
-    # Read CSV
-    csv_rows = []
-    with open(csv_path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            csv_rows.append(row)
-
-    # Scan directory
-    photo_files = []
-    for root, dirs, files in os.walk(photos_dir):
-        for file in files:
-            if (
-                file.startswith(".")
-                or file.endswith(".json")
-                or file.endswith("_original")
-            ):
-                continue
-            photo_files.append(os.path.join(root, file))
-
-    log.info(f"Found {len(photo_files)} photos in directory.")
+    csv_rows = list(csv.DictReader(open(csv_path, "r", encoding="utf-8")))
     log.info(f"Found {len(csv_rows)} entries in CSV.")
+
+    photo_files = [
+        os.path.join(root, file)
+        for root, dirs, files in os.walk(photos_dir)
+        for file in files
+        if not (
+            file.startswith(".") or file.endswith(".json") or file.endswith("_original")
+        )
+    ]
+    log.info(f"Found {len(photo_files)} photos in directory.")
 
     mismatches = []
     matches = 0
@@ -394,8 +378,18 @@ def cmd_metadata_verify_csv(csv_path, photos_dir):
                 expected_options.append(parsed_ist)
 
         metadata = get_exif_metadata(filepath)
-        dto = parse_exif_time(metadata.get("DateTimeOriginal"))
-        fmd = parse_exif_time(metadata.get("FileModifyDate"))
+
+        def parse_exif(key):
+            try:
+                return datetime.strptime(
+                    metadata.get(key, "").split("+")[0].split("-")[0].strip(),
+                    "%Y:%m:%d %H:%M:%S",
+                )
+            except:
+                return None
+
+        dto = parse_exif("DateTimeOriginal")
+        fmd = parse_exif("FileModifyDate")
 
         dto_matches = False
         best_expected = expected_options[0] if expected_options else None

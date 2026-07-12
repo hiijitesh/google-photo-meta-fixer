@@ -79,21 +79,16 @@ def cmd_sync_backup(remote_name):
         log.error(f"Error: {csv_path} not found.")
         return
 
-    target_files = []
-    with open(csv_path, "r", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            if row.get("takesUpSpace", "").lower() != "true":
-                continue
-            if row.get("isOriginalQuality", "").lower() != "true":
-                continue
-
-            filename = row.get("fileName", "").strip()
-            if not filename:
-                continue
-
-            taken_at = row.get("takenAt", "").strip()
-            year = taken_at[:4] if len(taken_at) >= 4 else "Unknown_Year"
-            target_files.append({"name": filename, "year": year})
+    target_files = [
+        {
+            "name": row.get("fileName", "").strip(),
+            "year": row.get("takenAt", "").strip()[:4] or "Unknown_Year",
+        }
+        for row in csv.DictReader(open(csv_path, "r", encoding="utf-8"))
+        if row.get("takesUpSpace", "").lower() == "true"
+        and row.get("isOriginalQuality", "").lower() == "true"
+        and row.get("fileName", "").strip()
+    ]
 
     if not target_files:
         log.warning("No matching files found.")
@@ -107,7 +102,7 @@ def cmd_sync_backup(remote_name):
     with open(drive_index_path, "r", encoding="utf-8") as f:
         drive_lookup = {}
         for item in json.load(f):
-            if not item.get("IsDir", False):
+            if not item.get("IsDir", False) and item.get("Name"):
                 drive_lookup.setdefault(item["Name"], []).append(item)
 
     if not remote_name.endswith(":"):
@@ -141,12 +136,11 @@ def cmd_sync_consuming(csv_path, remote_name, dest_subfolder=""):
         log.error(f"Error: CSV file {csv_path} not found.")
         return
 
-    target_files = set()
-    with open(csv_path, "r", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            filename = row.get("fileName", "").strip()
-            if filename:
-                target_files.add(filename)
+    target_files = {
+        row.get("fileName", "").strip()
+        for row in csv.DictReader(open(csv_path, "r", encoding="utf-8"))
+        if row.get("fileName", "").strip()
+    }
 
     if not target_files:
         log.warning("No filenames found in CSV.")
@@ -243,42 +237,31 @@ def cmd_sync_upload_local(local_dir, remote_name, dest_subfolder):
         log.error("Error: drive_index_photo_backUp.json not found.")
         return
 
-    # 1. Scan local files and compute relative paths
-    local_files = {}
+    # 1. Scan local files
     local_path_obj = Path(local_dir)
-    for root, dirs, files in os.walk(local_dir):
-        for file in files:
-            if file == ".DS_Store":
-                continue
-            full_path = os.path.join(root, file)
-            # Compute relative path from local_dir
-            rel_path = str(Path(full_path).relative_to(local_path_obj))
-            local_files[file.lower()] = {
-                "name": file,
-                "rel_path": rel_path,
-                "full_path": full_path,
-            }
-
+    local_files = {
+        p.name.lower(): {
+            "name": p.name,
+            "rel_path": str(p.relative_to(local_path_obj)),
+            "full_path": str(p),
+        }
+        for p in local_path_obj.rglob("*")
+        if p.is_file() and p.name != ".DS_Store"
+    }
     log.info(f"Found {len(local_files)} local files to check.")
 
     # 2. Load drive index
-    with open(drive_index_path, "r", encoding="utf-8") as f:
-        drive_data = json.load(f)
-
-    drive_files = set()
-    for item in drive_data:
-        if not item.get("IsDir", False):
-            name = item.get("Name") or item.get("name")
-            if name:
-                drive_files.add(name.lower())
-
+    drive_files = {
+        (item.get("Name") or item.get("name")).lower()
+        for item in json.load(open(drive_index_path, "r", encoding="utf-8"))
+        if not item.get("IsDir", False) and (item.get("Name") or item.get("name"))
+    }
     log.info(f"Found {len(drive_files)} files in Google Drive photos_backUp index.")
 
     # 3. Filter missing files
-    missing_rel_paths = []
-    for filename_lower, info in local_files.items():
-        if filename_lower not in drive_files:
-            missing_rel_paths.append(info["rel_path"])
+    missing_rel_paths = [
+        info["rel_path"] for fn, info in local_files.items() if fn not in drive_files
+    ]
 
     log.info(f"Missing files from Google Drive: {len(missing_rel_paths)}")
     if missing_rel_paths:

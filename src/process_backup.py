@@ -6,6 +6,7 @@ import shutil
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from src.utils import parse_filename_time, names_match
+from src.metadata import match_files_to_csv
 
 # Config
 DRIVE_INDEX_PATH = "data/json/drive_index.json"
@@ -31,40 +32,27 @@ def parse_csv_time(iso_str, offset_ms):
 
 
 def main(csv_paths=None, directories=None, write_exif=False):
-    # 1. Load drive index to check if files exist in drive
     print("Loading drive_index.json...")
     drive_files = set()
     if os.path.exists(DRIVE_INDEX_PATH):
-        with open(DRIVE_INDEX_PATH, "r", encoding="utf-8") as f:
-            drive_data = json.load(f)
-            for entry in drive_data:
-                name = entry.get("Name") or entry.get("name")
-                if name:
-                    drive_files.add(name)
+        drive_files = {
+            entry.get("Name") or entry.get("name")
+            for entry in json.load(open(DRIVE_INDEX_PATH, "r", encoding="utf-8"))
+            if entry.get("Name") or entry.get("name")
+        }
         print(f"Loaded {len(drive_files)} files from drive index.")
     else:
         print("drive_index.json not found! Will assume nothing is in Drive.")
 
-    # 2. Parse all CSVs
-    csv_entries = []
+    csv_rows = []
     actual_csv_paths = csv_paths if csv_paths is not None else CSV_PATHS
     for path in actual_csv_paths:
         print(f"Loading {path}...")
-        if not os.path.exists(path):
+        if os.path.exists(path):
+            csv_rows.extend(list(csv.DictReader(open(path, "r", encoding="utf-8"))))
+        else:
             print(f"Warning: {path} not found.")
-            continue
-        with open(path, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                taken_at = row.get("takenAt")
-                offset = row.get("timezoneOffsetMs", "0")
-                if taken_at:
-                    utc_dt, local_dt = parse_csv_time(taken_at, offset)
-                    if local_dt:
-                        csv_entries.append(
-                            {"utc_dt": utc_dt, "local_dt": local_dt, "row": row}
-                        )
-    print(f"Loaded {len(csv_entries)} valid timestamp entries from all CSVs.")
+    print(f"Loaded {len(csv_rows)} entries from all CSVs.")
 
     # 3. Process local files
     matched_files = []
@@ -80,117 +68,77 @@ def main(csv_paths=None, directories=None, write_exif=False):
             "Warning: --write-exif requested but exiftool is not installed. EXIF update skipped."
         )
 
+    photo_files = []
     actual_directories = directories if directories is not None else DIRECTORIES
     for directory in actual_directories:
         if not os.path.isdir(directory):
             print(f"Warning: Directory {directory} not found.")
             continue
+        photo_files.extend(
+            [
+                str(fp)
+                for fp in Path(directory).rglob("*")
+                if fp.is_file() and not fp.name.startswith(".")
+            ]
+        )
 
-        for filepath in Path(directory).rglob("*"):
-            if not filepath.is_file():
+    matched_results, _ = match_files_to_csv(photo_files, csv_rows)
+
+    for filepath_str in photo_files:
+        filepath = Path(filepath_str)
+        files_processed += 1
+        filename = filepath.name
+        filesize = filepath.stat().st_size
+
+        matched_row, matched_idx = matched_results.get(filepath_str, (None, -1))
+
+        if matched_row:
+            utc_dt, _ = parse_csv_time(
+                matched_row.get("takenAt"), matched_row.get("timezoneOffsetMs", "0")
+            )
+            if not utc_dt:
+                print(f"Could not parse takenAt from CSV for {filename}")
                 continue
 
-            # skip hidden files
-            if filepath.name.startswith("."):
-                continue
+            target_utc = utc_dt.timestamp()
+            filesystem_updates.append((filepath, target_utc))
+            updated_timestamps += 1
 
-            files_processed += 1
-            filename = filepath.name
-            filesize = filepath.stat().st_size
-
-            # Match to CSV timestamp
-            best_csv_match = None
-            local_time_from_name = None
-
-            # 1) Try exact filename matching
-            for entry in csv_entries:
-                if entry["row"].get("fileName") == filename:
-                    best_csv_match = entry
-                    break
-
-            # 2) Fallback to fuzzy filename matching
-            if not best_csv_match:
-                for entry in csv_entries:
-                    if names_match(filename, entry["row"].get("fileName", "")):
-                        best_csv_match = entry
-                        break
-
-            # 3) Fallback to parsed filename time
-            if not best_csv_match:
-                local_time_from_name = parse_filename_time(filename)
-                if local_time_from_name and csv_entries:
-                    # Find closest CSV entry checking both local and UTC times
-                    closest_entry = None
-                    min_diff = float("inf")
-
-                    for entry in csv_entries:
-                        diff_local = abs(
-                            (entry["local_dt"] - local_time_from_name).total_seconds()
-                        )
-                        diff_utc = abs(
-                            (
-                                entry["utc_dt"].replace(tzinfo=None)
-                                - local_time_from_name
-                            ).total_seconds()
-                        )
-
-                        best_diff = min(diff_local, diff_utc)
-                        if best_diff < min_diff:
-                            min_diff = best_diff
-                            closest_entry = entry
-
-                    # If it's within a reasonable threshold (e.g. 2 hours) we consider it a match
-                    if closest_entry is not None and min_diff < 7200:
-                        best_csv_match = closest_entry
-
-            if best_csv_match:
-                # Get the true UTC timestamp from the CSV
-                target_utc = best_csv_match["utc_dt"].timestamp()
-                filesystem_updates.append((filepath, target_utc))
-                updated_timestamps += 1
-
-                # Build EXIF payload if --write-exif flag is set
-                if write_exif and exiftool_installed:
-                    formatted_time = best_csv_match["utc_dt"].strftime(
-                        "%Y:%m:%d %H:%M:%S+00:00"
-                    )
-                    exif_updates.append(
-                        {
-                            "SourceFile": str(filepath.absolute()),
-                            "DateTimeOriginal": formatted_time,
-                            "CreateDate": formatted_time,
-                            "ModifyDate": formatted_time,
-                        }
-                    )
-
-                in_drive = filename in drive_files
-
-                matched_files.append(
+            # Build EXIF payload if --write-exif flag is set
+            if write_exif and exiftool_installed:
+                formatted_time = utc_dt.strftime("%Y:%m:%d %H:%M:%S+00:00")
+                exif_updates.append(
                     {
-                        "Name": filename,
-                        "Size": filesize,
-                        "LocalPath": str(filepath),
-                        "InDrive": in_drive,
+                        "SourceFile": str(filepath.absolute()),
+                        "DateTimeOriginal": formatted_time,
+                        "CreateDate": formatted_time,
+                        "ModifyDate": formatted_time,
                     }
                 )
-            else:
-                if not local_time_from_name:
-                    print(f"Could not parse time from filename: {filename}")
-                else:
-                    print(
-                        f"No close CSV match found for {filename} (parsed time: {local_time_from_name})"
-                    )
 
-                in_drive = filename in drive_files
-                unmatched_files.append(
-                    {
-                        "Name": filename,
-                        "Size": filesize,
-                        "LocalPath": str(filepath),
-                        "MatchedCSV": False,
-                        "InDrive": in_drive,
-                    }
-                )
+            in_drive = filename in drive_files
+
+            matched_files.append(
+                {
+                    "Name": filename,
+                    "Size": filesize,
+                    "LocalPath": str(filepath),
+                    "InDrive": in_drive,
+                }
+            )
+        else:
+            print(f"No close CSV match found for {filename}")
+
+            in_drive = filename in drive_files
+            unmatched_files.append(
+                {
+                    "Name": filename,
+                    "Size": filesize,
+                    "LocalPath": str(filepath),
+                    "MatchedCSV": False,
+                    "InDrive": in_drive,
+                }
+            )
 
     print(f"Processed {files_processed} local files.")
     print(f"Updated timestamps for {updated_timestamps} files using CSV metadata.")

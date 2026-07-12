@@ -9,7 +9,7 @@ from src.logger import log
 from src.utils import parse_filename_time
 
 
-def find_matching_media(json_path, media_lower_map, media_base_map):
+def find_matching_media(json_path, media_lower_map):
     """
     Matches a companion JSON file to its corresponding media file in the same directory.
     Uses precomputed dictionaries for O(1) exact matches and optimized fuzzy matching.
@@ -54,30 +54,40 @@ def find_matching_media(json_path, media_lower_map, media_base_map):
             "jp",
         }
         if json_ext.lower() in known_exts:
-            for f_base_lower, (f, f_ext_lower) in media_base_map.items():
-                if f_ext_lower.startswith(
-                    json_ext.lower()
-                ) or json_ext.lower().startswith(f_ext_lower):
-                    min_len = min(len(json_base_no_ext), len(f_base_lower))
-                    if (
-                        min_len >= 15
-                        and json_base_no_ext[:min_len] == f_base_lower[:min_len]
+            for f in media_lower_map.values():
+                if "." in f:
+                    f_base_no_ext, f_ext = f.rsplit(".", 1)
+                    if f_ext.lower().startswith(
+                        json_ext.lower()
+                    ) or json_ext.lower().startswith(f_ext.lower()):
+                        min_len = min(len(json_base_no_ext), len(f_base_no_ext))
+                        if (
+                            min_len >= 15
+                            and json_base_no_ext[:min_len] == f_base_no_ext[:min_len]
+                        ):
+                            return f
+        else:
+            for f in media_lower_map.values():
+                if "." in f:
+                    f_base, _ = f.rsplit(".", 1)
+                    f_base_lower = f_base.lower()
+                    if f_base_lower == json_base_lower:
+                        return f
+                    if len(json_base_lower) >= 15 and f_base_lower.startswith(
+                        json_base_lower
                     ):
                         return f
-        else:
-            for f_base_lower, (f, f_ext_lower) in media_base_map.items():
+    else:
+        for f in media_lower_map.values():
+            if "." in f:
+                f_base, _ = f.rsplit(".", 1)
+                f_base_lower = f_base.lower()
                 if f_base_lower == json_base_lower:
                     return f
                 if len(json_base_lower) >= 15 and f_base_lower.startswith(
                     json_base_lower
                 ):
                     return f
-    else:
-        for f_base_lower, (f, f_ext_lower) in media_base_map.items():
-            if f_base_lower == json_base_lower:
-                return f
-            if len(json_base_lower) >= 15 and f_base_lower.startswith(json_base_lower):
-                return f
 
     return None
 
@@ -117,7 +127,6 @@ def main(takeout_dir):
         json_files = []
         media_files = []
         media_lower_map = {}
-        media_base_map = {}
         for f in files:
             if f.startswith("."):
                 continue
@@ -126,11 +135,6 @@ def main(takeout_dir):
             else:
                 media_files.append(f)
                 media_lower_map[f.lower()] = f
-                if "." in f:
-                    f_base, f_ext = f.rsplit(".", 1)
-                    media_base_map[f_base.lower()] = (f, f_ext.lower())
-                else:
-                    media_base_map[f.lower()] = (f, "")
 
         if not json_files:
             continue
@@ -158,9 +162,7 @@ def main(takeout_dir):
                 continue
 
             # Try to match with media file
-            matched_media_name = find_matching_media(
-                json_path, media_lower_map, media_base_map
-            )
+            matched_media_name = find_matching_media(json_path, media_lower_map)
             if not matched_media_name:
                 unmatched_count += 1
                 unmatched_records.append(

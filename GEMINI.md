@@ -37,8 +37,8 @@ To keep the repository clean and maintainable, future LLMs must adhere to the fo
 ├── cleaner.py                 # Main CLI entrypoint (argparse interface)
 ├── src/                       # Core python modules
 │   ├── sync.py                # Cloud-to-cloud & local upload rclone logic
-│   ├── metadata.py            # Local & Drive timestamp comparison & verification logic
-│   └── process_backup.py      # Local file time correction logic
+│   ├── metadata.py            # Local & Drive timestamp comparison, verification & local fix logic
+│   └── process_takeout.py     # Takeout JSON-to-EXIF mapping and directory processing logic
 ├── data/                      # Contains inputs/caches (Ignored by Git)
 │   ├── csv/                   # Input metadata exports from Google Photos Toolkit (GPTK)
 │   └── json/                  # Drive file listings (drive_index.json, drive_index_photo_backUp.json)

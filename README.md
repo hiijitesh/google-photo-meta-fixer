@@ -114,6 +114,7 @@ All operations are triggered via the `gp-cleaner` CLI:
 | `gp-cleaner metadata verify-csv` | Audit CSV | Audits local EXIF timestamps against a GPTK CSV export. |
 | `gp-cleaner metadata verify-takeout` | Audit Takeout | Audits local files against the Takeout match log. |
 | `gp-cleaner process takeout` | Takeout merge | Walks Google Takeout directories and merges JSON metadata. |
+| `gp-cleaner process recover-timezone` | Recover timezone | Force shifts timestamps on already modified local photos to a specific timezone. |
 
 For full argument details and advanced options, see the [CLI Reference Guide](cli_reference_guide.md).
 

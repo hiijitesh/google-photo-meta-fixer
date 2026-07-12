@@ -70,6 +70,24 @@ gp-cleaner process backup --csv your_metadata.csv --dir "/path/to/your/photos"
 
 ---
 
+### Step 2B: Merge Google Takeout Metadata (For Option B)
+If you downloaded your library via Google Takeout, use `process takeout` with your target timezone offset (e.g. `+05:30` for India Standard Time) to merge the sidecar JSON metadata and correct the EXIF headers and filesystem dates:
+
+```bash
+# Using the script directly
+python3 cleaner.py process takeout --dir "/path/to/Takeout/Google Photos" --timezone "+05:30"
+
+# Or using the globally installed CLI
+gp-cleaner process takeout --dir "/path/to/Takeout/Google Photos" --timezone "+05:30"
+```
+
+If you ever need to force-shift the timezone of already modified takeout photos to a different timezone (e.g., to repair photos whose timestamps were incorrectly written to UTC), use the recovery command:
+```bash
+gp-cleaner process recover-timezone --dir "/path/to/Takeout/Google Photos" --timezone "+05:30"
+```
+
+---
+
 ### Step 3: Verify the Timestamps Match
 Before deleting anything from the cloud, audit the directory against the CSV to ensure that every single file is present and its metadata is completely correct:
 

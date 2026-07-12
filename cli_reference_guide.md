@@ -299,12 +299,17 @@ gp-cleaner metadata verify-takeout
 
 #### `gp-cleaner process takeout`
 
-Recursively walks a Google Takeout export directory, matches companion `.json` sidecar files to their photos/videos using fuzzy matching, and writes GPS, description, and timestamp metadata back into the files.
+Recursively walks a Google Takeout export directory, matches companion `.json` sidecar files to their photos/videos using fuzzy matching, and writes GPS, description, and timezone-adjusted local timestamp metadata back into the files.
 
 **Syntax:**
 ```bash
-gp-cleaner process takeout --dir TAKEOUT_DIR
+gp-cleaner process takeout --dir TAKEOUT_DIR [--timezone TIMEZONE_OFFSET]
 ```
+
+| Flag | Description |
+|:---|:---|
+| `--dir TAKEOUT_DIR` | Path to Google Takeout folder. |
+| `--timezone OFFSET` | Target timezone offset for naive EXIF timestamps (e.g. `+05:30`). Defaults to local system timezone. |
 
 **Example:**
 ```bash
@@ -336,6 +341,27 @@ gp-cleaner process backup [--csv [CSV ...]] [--dir [DIR ...]]
 **Example:**
 ```bash
 gp-cleaner process backup --csv "data/csv/metadata.csv" --dir "data/photos/photos_backUp"
+```
+
+---
+
+#### `gp-cleaner process recover-timezone`
+
+Force shifts timestamps on already modified local photos to a specific timezone. This is a dedicated data-recovery command to repair photos whose timestamps were incorrectly set to UTC. It bypasses the 26-hour variance pre-check and force-rewrites the corrected naive local EXIF time.
+
+**Syntax:**
+```bash
+gp-cleaner process recover-timezone --dir PHOTOS_DIR --timezone TIMEZONE_OFFSET
+```
+
+| Flag | Description |
+|:---|:---|
+| `--dir PHOTOS_DIR` | Path to the directory containing local photos. |
+| `--timezone OFFSET` | Target timezone offset (e.g. `+05:30`) to shift naive EXIF dates to. |
+
+**Example:**
+```bash
+gp-cleaner process recover-timezone --dir "Takeout/Google Photos" --timezone "+05:30"
 ```
 
 ---

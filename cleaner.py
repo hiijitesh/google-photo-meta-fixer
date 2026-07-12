@@ -160,6 +160,17 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
         help="Target timezone offset for naive EXIF timestamps (e.g. '+05:30'). Defaults to local system timezone.",
     )
 
+    recover_timezone_parser = process_sub.add_parser(
+        "recover-timezone",
+        help="Force shift timestamps on already modified local photos to a specific timezone",
+    )
+    recover_timezone_parser.add_argument(
+        "--dir", required=True, help="Path to photos directory"
+    )
+    recover_timezone_parser.add_argument(
+        "--timezone", required=True, help="Target timezone offset (e.g. '+05:30')"
+    )
+
     bind_motion_parser = process_sub.add_parser(
         "bind-motion",
         help="Embed companion motion video (_MP.MP4) into its paired JPEG to create Google Motion Photos",
@@ -204,6 +215,10 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
             import src.process_takeout as pt
 
             pt.main(args.dir, timezone_arg=args.timezone)
+        elif args.subcommand == "recover-timezone":
+            import src.process_takeout as pt
+
+            pt.cmd_recover_timezone(args.dir, args.timezone)
         elif args.subcommand == "bind-motion":
             import src.bind_motion as bm
 

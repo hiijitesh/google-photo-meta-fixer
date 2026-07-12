@@ -428,3 +428,188 @@ def main(takeout_dir, timezone_arg=None):
     log.info(f"  Matched index saved to {match_log_path}")
     log.info(f"  Unmatched index saved to {unmatched_log_path}")
     log.info("Done!")
+
+
+def cmd_recover_timezone(takeout_dir, timezone_arg):
+    log.info("=== Starting Google Takeout Timezone Recovery ===")
+    takeout_path = Path(takeout_dir)
+    if not takeout_path.is_dir():
+        log.error(f"Error: Specified path '{takeout_dir}' is not a directory.")
+        return
+
+    # Parse target timezone offset
+    target_tz = None
+    if timezone_arg:
+        match = re.match(r"^([+-])(\d{1,2}):?(\d{2})$", timezone_arg.strip())
+        if match:
+            sign, hours, minutes = match.groups()
+            delta_seconds = (int(hours) * 3600 + int(minutes) * 60) * (
+                -1 if sign == "-" else 1
+            )
+            target_tz = timezone(timedelta(seconds=delta_seconds))
+        elif timezone_arg.strip().upper() in ("Z", "UTC"):
+            target_tz = timezone.utc
+        else:
+            log.warning(
+                f"Could not parse timezone '{timezone_arg}'. Defaulting to system timezone."
+            )
+            target_tz = datetime.now().astimezone().tzinfo
+    if not target_tz:
+        target_tz = datetime.now().astimezone().tzinfo
+
+    exiftool_installed = shutil.which("exiftool") is not None
+    if not exiftool_installed:
+        log.error("Error: exiftool is not installed. Recovery requires exiftool.")
+        return
+
+    exif_updates = []
+    filesystem_updates = []
+    matched_count = 0
+
+    log.info("Crawling directory structure...")
+    for root, dirs, files in os.walk(takeout_path):
+        json_files = []
+        media_files = []
+        media_lower_map = {}
+        for f in files:
+            if f.startswith("."):
+                continue
+            if f.endswith(".json"):
+                json_files.append(f)
+            else:
+                media_files.append(f)
+                media_lower_map[f.lower()] = f
+
+        if not json_files:
+            continue
+
+        root_path = Path(root)
+        for json_file in json_files:
+            if json_file == "metadata.json":
+                continue
+
+            json_path = root_path / json_file
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                continue
+
+            if "photoTakenTime" not in data and "creationTime" not in data:
+                continue
+
+            matched_media_name = find_matching_media(json_path, media_lower_map)
+            if not matched_media_name:
+                continue
+
+            media_names_to_update = [matched_media_name]
+            lower_name = matched_media_name.lower()
+            photo_exts = (".jpg", ".jpeg", ".heic", ".png", ".webp")
+            if lower_name.endswith(photo_exts):
+                stem_lower = Path(matched_media_name).stem.lower()
+                video_exts = (".mp4", ".mov", ".3gp", ".m4v", ".avi")
+                for f in media_files:
+                    if f != matched_media_name:
+                        f_path = Path(f)
+                        if (
+                            f_path.stem.lower() == stem_lower
+                            and f_path.suffix.lower() in video_exts
+                        ):
+                            media_names_to_update.append(f)
+
+            time_section = data.get("photoTakenTime") or data.get("creationTime") or {}
+            ts_str = time_section.get("timestamp", "0")
+            try:
+                ts = float(ts_str)
+            except ValueError:
+                ts = 0.0
+
+            if ts <= 0:
+                continue
+
+            dt = datetime.fromtimestamp(ts, tz=target_tz)
+            tz_offset = dt.strftime("%z")
+            if len(tz_offset) == 5:
+                tz_offset = tz_offset[:3] + ":" + tz_offset[3:]
+            elif not tz_offset:
+                tz_offset = "+00:00"
+            formatted_time = dt.strftime("%Y:%m:%d %H:%M:%S") + tz_offset
+
+            for m_name in media_names_to_update:
+                media_path = root_path / m_name
+                matched_count += 1
+                filesystem_updates.append((media_path, ts))
+                exif_updates.append(
+                    {
+                        "SourceFile": str(media_path.absolute()),
+                        "DateTimeOriginal": formatted_time,
+                        "CreateDate": formatted_time,
+                        "ModifyDate": formatted_time,
+                    }
+                )
+
+    log.info(
+        f"Matched {matched_count} files. Preparing force-updates for timezone shift..."
+    )
+
+    if exif_updates:
+        os.makedirs("data/json", exist_ok=True)
+        temp_json_path = "data/json/ist_recovery_exif.json"
+        temp_files_path = "data/json/ist_recovery_files.txt"
+
+        try:
+            with open(temp_json_path, "w", encoding="utf-8") as f:
+                json.dump(exif_updates, f, indent=2)
+
+            with open(temp_files_path, "w", encoding="utf-8") as f:
+                for entry in exif_updates:
+                    f.write(entry["SourceFile"] + "\n")
+
+            log.info("Force updating EXIF metadata using exiftool...")
+            cmd = [
+                "exiftool",
+                "-overwrite_original",
+                "-m",
+                f"-json={temp_json_path}",
+                "-@",
+                temp_files_path,
+            ]
+            res = subprocess.run(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            if res.returncode == 0:
+                log.info("EXIF metadata successfully force-shifted to target timezone.")
+            else:
+                log.error(f"Error running exiftool: {res.stderr}")
+        except Exception as e:
+            log.error(f"Failed to execute exiftool: {e}")
+        finally:
+            for p in [temp_json_path, temp_files_path]:
+                if os.path.exists(p):
+                    os.remove(p)
+
+    if filesystem_updates:
+        log.info("Updating local filesystem modification times (os.utime)...")
+        updated_count = 0
+        for filepath, ts in filesystem_updates:
+            try:
+                os.utime(filepath, (ts, ts))
+                updated_count += 1
+            except Exception:
+                pass
+        log.info(f"Filesystem timestamps updated for {updated_count} files.")
+
+    # Cleanup backup files
+    cleanup_count = 0
+    for root, dirs, files in os.walk(takeout_path):
+        for f in files:
+            if f.endswith("_original"):
+                try:
+                    os.remove(os.path.join(root, f))
+                    cleanup_count += 1
+                except Exception:
+                    pass
+    if cleanup_count:
+        log.info(f"Cleaned up {cleanup_count} exiftool backup file(s).")
+
+    log.info("Timezone recovery complete!")

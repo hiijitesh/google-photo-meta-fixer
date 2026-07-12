@@ -1,4 +1,5 @@
-import struct
+import os
+import subprocess
 from pathlib import Path
 from src.logger import log
 
@@ -51,81 +52,7 @@ def build_motion_xmp(video_size: int) -> bytes:
     return xmp.encode("utf-8")
 
 
-def inject_xmp_into_jpeg(jpeg_bytes: bytes, xmp_payload: bytes) -> bytes:
-    """
-    Inject or replace the XMP APP1 segment in JPEG bytes.
-    The new XMP segment is inserted at the earliest APP slot (after SOI),
-    replacing any pre-existing XMP APP1 segment.
-    """
-    if not jpeg_bytes.startswith(JPEG_SOI):
-        raise ValueError("Not a valid JPEG file (missing SOI marker)")
-
-    # Build the complete APP1 XMP segment
-    seg_body = XMP_NAMESPACE + xmp_payload
-    seg_length = len(seg_body) + 2  # +2 for the 2-byte length field itself
-    if seg_length > 0xFFFF:
-        raise ValueError("XMP payload is too large for a single JPEG APP1 segment")
-    xmp_segment = JPEG_APP1 + struct.pack(">H", seg_length) + seg_body
-
-    result = bytearray(jpeg_bytes[:2])  # Start with SOI
-    pos = 2
-    xmp_inserted = False
-
-    while pos < len(jpeg_bytes):
-        if pos + 1 >= len(jpeg_bytes):
-            result.extend(jpeg_bytes[pos:])
-            break
-
-        if jpeg_bytes[pos] != 0xFF:
-            # We've wandered into raw scan data — insert XMP if not yet done, copy rest
-            if not xmp_inserted:
-                result.extend(xmp_segment)
-            result.extend(jpeg_bytes[pos:])
-            break
-
-        marker = jpeg_bytes[pos : pos + 2]
-
-        # SOS: start of compressed scan — insert XMP here and copy rest verbatim
-        if marker == JPEG_SOS:
-            if not xmp_inserted:
-                result.extend(xmp_segment)
-                xmp_inserted = True
-            result.extend(jpeg_bytes[pos:])
-            break
-
-        # EOI: graceful end
-        if marker == JPEG_EOI:
-            if not xmp_inserted:
-                result.extend(xmp_segment)
-                xmp_inserted = True
-            result.extend(jpeg_bytes[pos:])
-            break
-
-        # Standard length-prefixed segment
-        if pos + 4 > len(jpeg_bytes):
-            result.extend(jpeg_bytes[pos:])
-            break
-
-        seg_len = struct.unpack(">H", jpeg_bytes[pos + 2 : pos + 4])[0]
-        seg_end = pos + 2 + seg_len
-
-        # Detect an existing XMP APP1 and replace it with our new one
-        is_existing_xmp = (
-            marker == JPEG_APP1
-            and jpeg_bytes[pos + 4 : pos + 4 + len(XMP_NAMESPACE)] == XMP_NAMESPACE
-        )
-
-        if is_existing_xmp:
-            if not xmp_inserted:
-                result.extend(xmp_segment)
-                xmp_inserted = True
-            # Skip old XMP segment (don't copy it)
-        else:
-            result.extend(jpeg_bytes[pos:seg_end])
-
-        pos = seg_end
-
-    return bytes(result)
+# Removing inject_xmp_into_jpeg. Exiftool will handle injection.
 
 
 def already_bound(jpeg_path: Path) -> bool:
@@ -216,23 +143,46 @@ def main(directory: str):
         )
 
         try:
-            with open(photo_path, "rb") as f:
-                jpeg_bytes = f.read()
             with open(video_path, "rb") as f:
                 video_bytes = f.read()
 
-            # Inject XMP and append video data
+            # Build XMP payload
             xmp_payload = build_motion_xmp(len(video_bytes))
-            modified_jpeg = inject_xmp_into_jpeg(jpeg_bytes, xmp_payload)
 
-            with open(photo_path, "wb") as f:
-                f.write(modified_jpeg)
-                f.write(video_bytes)
+            # Write XMP payload to temp file
+            os.makedirs("data/json", exist_ok=True)
+            temp_xmp_path = "data/json/motion_photo_temp.xmp"
+            with open(temp_xmp_path, "wb") as f:
+                f.write(xmp_payload)
 
-            video_path.unlink()
-            log.debug(f"    Removed standalone video: {video_path.name}")
+            # Call exiftool to inject XMP
+            cmd = [
+                "exiftool",
+                "-overwrite_original",
+                "-m",
+                f"-xmp<={temp_xmp_path}",
+                str(photo_path),
+            ]
+            res = subprocess.run(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
 
-            bound_count += 1
+            if os.path.exists(temp_xmp_path):
+                os.remove(temp_xmp_path)
+
+            if res.returncode == 0:
+                # Append video bytes to the end of the JPEG
+                with open(photo_path, "ab") as f:
+                    f.write(video_bytes)
+
+                video_path.unlink()
+                log.debug(f"    Removed standalone video: {video_path.name}")
+                bound_count += 1
+            else:
+                log.error(
+                    f"  Failed to run exiftool for {photo_path.name}: {res.stderr}"
+                )
+                failed_count += 1
 
         except Exception as e:
             log.error(f"  Failed to bind {photo_path.name}: {e}")

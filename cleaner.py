@@ -189,10 +189,11 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
 
     elif args.command == "process":
         if args.subcommand == "backup":
-            import src.process_backup as bp
-
-            bp.main(
-                csv_paths=args.csv, directories=args.dir, write_exif=args.write_exif
+            cmd_metadata_fix_local(
+                csv_paths=args.csv,
+                photos_dirs=args.dir,
+                write_exif=args.write_exif,
+                drive_index_path="data/json/drive_index.json",
             )
         elif args.subcommand == "takeout":
             import src.process_takeout as pt

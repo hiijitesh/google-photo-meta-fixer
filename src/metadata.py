@@ -280,7 +280,7 @@ def cmd_metadata_fix_local(
         taken_at = matched_row.get("takenAt", "")
         offset = matched_row.get("timezoneOffsetMs", "0")
         utc_dt, local_dt = parse_csv_time(taken_at, offset)
-        if not utc_dt:
+        if not utc_dt or not local_dt:
             unmatched_files.append(
                 {
                     "Name": filename,
@@ -296,7 +296,16 @@ def cmd_metadata_fix_local(
         filesystem_updates.append((filepath, ts))
 
         if write_exif and exiftool_installed:
-            formatted_time = utc_dt.strftime("%Y:%m:%d %H:%M:%S+00:00")
+            try:
+                offset_val = float(offset or 0)
+                sign = "-" if offset_val < 0 else "+"
+                abs_offset = abs(offset_val) / 1000.0
+                hours = int(abs_offset // 3600)
+                minutes = int((abs_offset % 3600) // 60)
+                tz_offset_str = f"{sign}{hours:02d}:{minutes:02d}"
+            except Exception:
+                tz_offset_str = "+00:00"
+            formatted_time = local_dt.strftime("%Y:%m:%d %H:%M:%S") + tz_offset_str
             exif_updates.append(
                 {
                     "SourceFile": str(Path(filepath).absolute()),

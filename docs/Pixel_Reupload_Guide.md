@@ -163,3 +163,28 @@ When executing this workflow, keep in mind how Google handles metadata in Web UI
 > [!TIP]
 > Always verify your folder using `gp-cleaner metadata verify-takeout` or `gp-cleaner metadata verify-csv`. If you have shifted dates on your timeline, processing a merged **Google Takeout export** is the most bulletproof way to preserve them.
 
+---
+
+## ❓ Troubleshooting & Timezone FAQ
+
+### Q1: Why did my photos get shifted to London/UTC time on my first run?
+Older versions of this toolkit wrote UTC times directly to EXIF `DateTimeOriginal` headers. Because photo libraries expect local naive times, they displayed the UTC time as the local time, shifting your timeline. 
+
+This is now fixed:GPMF automatically offsets timestamps to your local system timezone, or you can specify your target offset (e.g. `--timezone "+05:30"` for India Standard Time) to guarantee correct local EXIF times.
+
+### Q2: How can I verify that my local photos are completely fixed before uploading?
+Run the verification command:
+```bash
+python3 scratch/verify_takeout_ist.py "/path/to/Takeout/Google Photos"
+```
+This tool compares the EXIF time on every photo against the expected IST time. If the summary reports `Successful Matches` equal to your total files, your library is 100% correct.
+
+### Q3: Google Photos is showing duplicates after re-upload. How do I fix it?
+If you did not empty your Google Photos Trash after deleting the incorrect uploads, Google Photos will match them and create duplicates. 
+1. Delete the incorrect files.
+2. Go to **Trash** on [photos.google.com](https://photos.google.com) and click **Empty Trash**.
+3. Re-upload the newly repaired photos.
+
+### Q4: Why is the script skipping files during a re-run?
+To save disk I/O and prevent changing file hashes (which triggers cloud re-uploads), GPMF runs a pre-check. It only writes EXIF and filesystem updates if there is a real difference. If a photo's metadata is already correct, the tool will skip it, keeping the file contents intact.
+

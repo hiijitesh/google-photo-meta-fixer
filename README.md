@@ -144,3 +144,21 @@ To run it:
    npx expo start
    ```
 4. Scan the QR code with the **Expo Go** app on your Android device.
+
+---
+
+## ❓ FAQ & Troubleshooting
+
+### Why did my photos get shifted to UTC on my first run?
+Older versions wrote UTC times directly to EXIF headers, which photo libraries parsed as naive local times. GPMF now defaults to using your system's timezone offset, or you can specify it using the `--timezone` flag (e.g. `--timezone "+05:30"`).
+
+### How do I repair already modified photos?
+Use the dedicated `recover-timezone` command:
+```bash
+gp-cleaner process recover-timezone --dir "/path/to/photos" --timezone "+05:30"
+```
+
+### Why does the script skip files?
+To prevent modifying file binary hashes (which forces cloud re-uploads), GPMF checks if metadata is already correct. If it is, the write operation is skipped automatically.
+
+For the full setup instructions and step-by-step re-upload guide, see [docs/Pixel_Reupload_Guide.md](docs/Pixel_Reupload_Guide.md).

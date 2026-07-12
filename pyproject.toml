@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "google-photo-meta-fixer"
-version = "1.0.0"
+version = "2.0"
 description = "CLI toolkit to audit, restore, and sync Google Photos metadata without re-uploading payloads"
 readme = "README.md"
 license = { text = "MIT" }

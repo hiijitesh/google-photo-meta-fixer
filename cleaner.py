@@ -154,6 +154,11 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
     takeout_parser.add_argument(
         "--dir", required=True, help="Path to Google Takeout directory"
     )
+    takeout_parser.add_argument(
+        "--timezone",
+        default=None,
+        help="Target timezone offset for naive EXIF timestamps (e.g. '+05:30'). Defaults to local system timezone.",
+    )
 
     bind_motion_parser = process_sub.add_parser(
         "bind-motion",
@@ -198,7 +203,7 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
         elif args.subcommand == "takeout":
             import src.process_takeout as pt
 
-            pt.main(args.dir)
+            pt.main(args.dir, timezone_arg=args.timezone)
         elif args.subcommand == "bind-motion":
             import src.bind_motion as bm
 

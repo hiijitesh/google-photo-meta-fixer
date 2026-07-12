@@ -64,57 +64,60 @@ def parse_csv_time(iso_str, offset_ms):
         return None, None
 
 
-def is_time_different(current_time_str, target_time_str):
-    """
-    Returns True if current_time_str is missing/invalid or differs from target_time_str
-    by more than 26 hours (to account for timezone offsets).
-    """
-    if not current_time_str:
-        return True
-    if current_time_str == target_time_str:
-        return False
-
-    try:
-        # target_time_str is formatted as "%Y:%m:%d %H:%M:%S+00:00"
-        target_dt = datetime.strptime(
-            target_time_str, "%Y:%m:%d %H:%M:%S+00:00"
-        ).replace(tzinfo=timezone.utc)
-        target_ts = target_dt.timestamp()
-    except Exception:
-        return True
-
-    current_time_str = str(current_time_str).strip()
-    if current_time_str in ("0000:00:00 00:00:00", ""):
-        return True
-
-    # Check for timezone offset in current time (e.g. "+09:00" or "-05:00")
-    match = re.search(r"([+-]\d{2}):?(\d{2})$", current_time_str)
+def parse_exif_time(time_str):
+    if not time_str:
+        return None
+    time_str = str(time_str).strip()
+    match = re.search(r"([+-]\d{2}):?(\d{2})$", time_str)
+    tz = None
     if match:
         try:
-            offset_str = match.group(1) + match.group(2)
-            date_part = current_time_str[: -len(match.group(0))].strip()
-            date_part = date_part[:19]
-            dt_naive = datetime.strptime(date_part, "%Y:%m:%d %H:%M:%S")
             hours = int(match.group(1))
             minutes = int(match.group(2))
             sign = -1 if hours < 0 else 1
             tz = timezone(sign * timedelta(hours=abs(hours), minutes=minutes))
-            dt = dt_naive.replace(tzinfo=tz)
-            current_ts = dt.astimezone(timezone.utc).timestamp()
-            return abs(current_ts - target_ts) > 60.0
+            date_part = time_str[: -len(match.group(0))].strip()
         except Exception:
-            pass
+            date_part = time_str
+    elif time_str.endswith("Z"):
+        tz = timezone.utc
+        date_part = time_str[:-1].strip()
+    else:
+        date_part = time_str
 
-    # Parse as naive datetime (assume local time)
     try:
-        clean_date = current_time_str[:19]
-        dt_naive = datetime.strptime(clean_date, "%Y:%m:%d %H:%M:%S")
-        dt_target_utc = target_dt.replace(tzinfo=None)
-        diff = abs((dt_naive - dt_target_utc).total_seconds())
-        # Difference <= 26 hours is assumed to be timezone difference
-        return diff > 26 * 3600
+        date_part = date_part[:19].replace("-", ":")
+        dt_naive = datetime.strptime(date_part, "%Y:%m:%d %H:%M:%S")
+        if tz:
+            return dt_naive.replace(tzinfo=tz)
+        return dt_naive
     except Exception:
+        return None
+
+
+def is_time_different(current_time_str, target_time_str):
+    """
+    Returns True if current_time_str is missing/invalid or differs from target_time_str
+    by more than 26 hours (or > 60s if both have timezone info).
+    """
+    if current_time_str == target_time_str:
+        return False
+
+    dt_target = parse_exif_time(target_time_str)
+    dt_current = parse_exif_time(current_time_str)
+
+    if not dt_target or not dt_current:
         return True
+
+    # If both have timezone info, compare timestamps directly (tolerance 60 seconds)
+    if dt_target.tzinfo and dt_current.tzinfo:
+        return abs(dt_target.timestamp() - dt_current.timestamp()) > 60.0
+
+    # If one or both are naive, compare naive portions (allow 26 hours for timezone shifts)
+    naive_target = dt_target.replace(tzinfo=None)
+    naive_current = dt_current.replace(tzinfo=None)
+    diff = abs((naive_target - naive_current).total_seconds())
+    return diff > 26 * 3600
 
 
 def is_gps_different(current_val, target_val, tolerance=0.0001):

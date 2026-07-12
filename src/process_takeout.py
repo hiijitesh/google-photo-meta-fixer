@@ -92,12 +92,32 @@ def find_matching_media(json_path, media_lower_map):
     return None
 
 
-def main(takeout_dir):
+def main(takeout_dir, timezone_arg=None):
     log.info("=== Starting Google Takeout Metadata Merger ===")
     takeout_path = Path(takeout_dir)
     if not takeout_path.is_dir():
         log.error(f"Error: Specified path '{takeout_dir}' is not a directory.")
         return
+
+    # Set up target timezone offset
+    target_tz = None
+    if timezone_arg:
+        match = re.match(r"^([+-])(\d{1,2}):?(\d{2})$", timezone_arg.strip())
+        if match:
+            sign, hours, minutes = match.groups()
+            delta_seconds = (int(hours) * 3600 + int(minutes) * 60) * (
+                -1 if sign == "-" else 1
+            )
+            target_tz = timezone(timedelta(seconds=delta_seconds))
+        elif timezone_arg.strip().upper() in ("Z", "UTC"):
+            target_tz = timezone.utc
+        else:
+            log.warning(
+                f"Could not parse timezone '{timezone_arg}'. Defaulting to system timezone."
+            )
+            target_tz = datetime.now().astimezone().tzinfo
+    if not target_tz:
+        target_tz = datetime.now().astimezone().tzinfo
 
     # Check for exiftool dependency
     exiftool_installed = shutil.which("exiftool") is not None
@@ -200,9 +220,14 @@ def main(takeout_dir):
                 # Fallback to current time if missing/invalid
                 ts = datetime.now(timezone.utc).timestamp()
 
-            # Convert to UTC string for EXIF format
-            dt = datetime.fromtimestamp(ts, tz=timezone.utc)
-            formatted_time = dt.strftime("%Y:%m:%d %H:%M:%S+00:00")
+            # Convert to target timezone string for EXIF format
+            dt = datetime.fromtimestamp(ts, tz=target_tz)
+            tz_offset = dt.strftime("%z")
+            if len(tz_offset) == 5:
+                tz_offset = tz_offset[:3] + ":" + tz_offset[3:]
+            elif not tz_offset:
+                tz_offset = "+00:00"
+            formatted_time = dt.strftime("%Y:%m:%d %H:%M:%S") + tz_offset
 
             # Extract description
             description = data.get("description", "").strip()

@@ -3,7 +3,7 @@ import json
 import re
 import shutil
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from src.logger import log
 from src.utils import parse_filename_time
@@ -90,6 +90,135 @@ def find_matching_media(json_path, media_lower_map):
                     return f
 
     return None
+
+
+def is_time_different(current_time_str, target_time_str):
+    """
+    Returns True if current_time_str is missing/invalid or differs from target_time_str
+    by more than 26 hours (to account for timezone offsets).
+    """
+    if not current_time_str:
+        return True
+    if current_time_str == target_time_str:
+        return False
+
+    try:
+        # target_time_str is formatted as "%Y:%m:%d %H:%M:%S+00:00"
+        target_dt = datetime.strptime(
+            target_time_str, "%Y:%m:%d %H:%M:%S+00:00"
+        ).replace(tzinfo=timezone.utc)
+        target_ts = target_dt.timestamp()
+    except Exception:
+        return True
+
+    current_time_str = str(current_time_str).strip()
+    if current_time_str in ("0000:00:00 00:00:00", ""):
+        return True
+
+    # Check for timezone offset in current time (e.g. "+09:00" or "-05:00")
+    match = re.search(r"([+-]\d{2}):?(\d{2})$", current_time_str)
+    if match:
+        try:
+            offset_str = match.group(1) + match.group(2)
+            date_part = current_time_str[: -len(match.group(0))].strip()
+            date_part = date_part[:19]
+            dt_naive = datetime.strptime(date_part, "%Y:%m:%d %H:%M:%S")
+            hours = int(match.group(1))
+            minutes = int(match.group(2))
+            sign = -1 if hours < 0 else 1
+            tz = timezone(sign * timedelta(hours=abs(hours), minutes=minutes))
+            dt = dt_naive.replace(tzinfo=tz)
+            current_ts = dt.astimezone(timezone.utc).timestamp()
+            return abs(current_ts - target_ts) > 60.0
+        except Exception:
+            pass
+
+    # Parse as naive datetime (assume local time)
+    try:
+        clean_date = current_time_str[:19]
+        dt_naive = datetime.strptime(clean_date, "%Y:%m:%d %H:%M:%S")
+        dt_target_utc = target_dt.replace(tzinfo=None)
+        diff = abs((dt_naive - dt_target_utc).total_seconds())
+        # Difference <= 26 hours is assumed to be timezone difference
+        return diff > 26 * 3600
+    except Exception:
+        return True
+
+
+def is_gps_different(current_val, target_val, tolerance=0.0001):
+    """
+    Returns True if current_val is missing/invalid or differs from target_val
+    by more than the tolerance.
+    """
+    if target_val is None:
+        return False
+    if current_val is None:
+        return True
+    try:
+        return abs(float(current_val) - float(target_val)) > tolerance
+    except Exception:
+        return True
+
+
+def should_keep_update(exif_entry, current):
+    """
+    Returns True if the file needs to be updated.
+    We skip updating if the core date (DateTimeOriginal or CreateDate) is already
+    correct (within 26 hours) and GPS / description are already correct.
+    """
+    # 1. Date/Time checks
+    curr_dto = current.get("DateTimeOriginal")
+    curr_cd = current.get("CreateDate")
+
+    target_dt_str = exif_entry.get("DateTimeOriginal")
+
+    date_needs_update = True
+    if target_dt_str:
+        # Check if either DateTimeOriginal or CreateDate in current is close to target
+        dto_diff = is_time_different(curr_dto, target_dt_str) if curr_dto else True
+        cd_diff = is_time_different(curr_cd, target_dt_str) if curr_cd else True
+
+        # If either is correct, we don't need to update the date
+        if (curr_dto and not dto_diff) or (curr_cd and not cd_diff):
+            date_needs_update = False
+
+    # 2. GPS checks
+    gps_needs_update = False
+    if "GPSLatitude" in exif_entry:
+        if is_gps_different(current.get("GPSLatitude"), exif_entry["GPSLatitude"]):
+            gps_needs_update = True
+    if "GPSLongitude" in exif_entry:
+        if is_gps_different(current.get("GPSLongitude"), exif_entry["GPSLongitude"]):
+            gps_needs_update = True
+    if "GPSAltitude" in exif_entry:
+        if is_gps_different(
+            current.get("GPSAltitude"), exif_entry["GPSAltitude"], tolerance=5.0
+        ):
+            gps_needs_update = True
+
+    # 3. Description checks
+    desc_needs_update = False
+    if "Description" in exif_entry:
+        if current.get("Description") != exif_entry["Description"]:
+            desc_needs_update = True
+    if "UserComment" in exif_entry:
+        if current.get("UserComment") != exif_entry["UserComment"]:
+            desc_needs_update = True
+
+    # We must update if:
+    # - The date needs update
+    # - OR GPS needs update
+    # - OR description needs update
+    if date_needs_update or gps_needs_update or desc_needs_update:
+        # If the date was already correct, remove date-related fields from exif_entry
+        # so we don't overwrite correct local times with UTC times.
+        if not date_needs_update:
+            exif_entry.pop("DateTimeOriginal", None)
+            exif_entry.pop("CreateDate", None)
+            exif_entry.pop("ModifyDate", None)
+        return True
+
+    return False
 
 
 def main(takeout_dir):
@@ -256,45 +385,99 @@ def main(takeout_dir):
 
     # 1. Update EXIF tags via exiftool batch command
     if exiftool_installed and exif_updates:
-        log.info("Batch updating EXIF metadata using exiftool...")
-
-        # Save temp payloads under data/json/ (create dir if not exists)
+        log.info("Checking existing EXIF metadata to avoid unnecessary writes...")
         os.makedirs("data/json", exist_ok=True)
-        temp_json_path = "data/json/takeout_exif_temp.json"
-        temp_files_path = "data/json/takeout_files_temp.txt"
+        read_files_path = "data/json/takeout_read_files_temp.txt"
 
+        current_meta = {}
         try:
-            with open(temp_json_path, "w", encoding="utf-8") as f:
-                json.dump(exif_updates, f, indent=2)
-
-            with open(temp_files_path, "w", encoding="utf-8") as f:
+            with open(read_files_path, "w", encoding="utf-8") as f:
                 for entry in exif_updates:
                     f.write(entry["SourceFile"] + "\n")
 
-            # Execute exiftool batch command
-            cmd = [
+            # Execute exiftool batch read command with numeric flag (-n)
+            read_cmd = [
                 "exiftool",
-                "-overwrite_original",
-                "-m",
-                f"-json={temp_json_path}",
+                "-j",
+                "-n",
+                "-DateTimeOriginal",
+                "-CreateDate",
+                "-ModifyDate",
+                "-GPSLatitude",
+                "-GPSLongitude",
+                "-GPSAltitude",
+                "-Description",
+                "-UserComment",
                 "-@",
-                temp_files_path,
+                read_files_path,
             ]
             res = subprocess.run(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                read_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
             if res.returncode == 0:
-                log.info("EXIF metadata successfully updated for matched files.")
+                current_meta_list = json.loads(res.stdout)
+                for item in current_meta_list:
+                    sf = os.path.normpath(os.path.abspath(item["SourceFile"]))
+                    current_meta[sf] = item
             else:
-                log.error(f"Error running exiftool: {res.stderr}")
+                log.warning(f"Error reading existing EXIF: {res.stderr}. Writing all.")
         except Exception as e:
-            log.error(f"Failed to execute exiftool batch process: {e}")
+            log.warning(f"Failed to read existing EXIF: {e}. Writing all.")
         finally:
-            # Clean up temp files
-            if os.path.exists(temp_json_path):
-                os.remove(temp_json_path)
-            if os.path.exists(temp_files_path):
-                os.remove(temp_files_path)
+            if os.path.exists(read_files_path):
+                os.remove(read_files_path)
+
+        # Filter updates
+        filtered_updates = []
+        for entry in exif_updates:
+            sf_norm = os.path.normpath(os.path.abspath(entry["SourceFile"]))
+            current = current_meta.get(sf_norm, {})
+            if should_keep_update(entry, current):
+                filtered_updates.append(entry)
+
+        skipped_count = len(exif_updates) - len(filtered_updates)
+        if skipped_count > 0:
+            log.info(f"Skipping {skipped_count} files with up-to-date EXIF data.")
+
+        if filtered_updates:
+            log.info(
+                f"Batch updating EXIF metadata for {len(filtered_updates)} files using exiftool..."
+            )
+            temp_json_path = "data/json/takeout_exif_temp.json"
+            temp_files_path = "data/json/takeout_files_temp.txt"
+
+            try:
+                with open(temp_json_path, "w", encoding="utf-8") as f:
+                    json.dump(filtered_updates, f, indent=2)
+
+                with open(temp_files_path, "w", encoding="utf-8") as f:
+                    for entry in filtered_updates:
+                        f.write(entry["SourceFile"] + "\n")
+
+                cmd = [
+                    "exiftool",
+                    "-overwrite_original",
+                    "-m",
+                    f"-json={temp_json_path}",
+                    "-@",
+                    temp_files_path,
+                ]
+                res = subprocess.run(
+                    cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+                if res.returncode == 0:
+                    log.info("EXIF metadata successfully updated for modified files.")
+                else:
+                    log.error(f"Error running exiftool: {res.stderr}")
+            except Exception as e:
+                log.error(f"Failed to execute exiftool batch process: {e}")
+            finally:
+                if os.path.exists(temp_json_path):
+                    os.remove(temp_json_path)
+                if os.path.exists(temp_files_path):
+                    os.remove(temp_files_path)
+        else:
+            log.info("All files have correct EXIF data. No writes performed.")
 
     # Clean up any _original backup files left behind by exiftool on error
     cleanup_count = 0
@@ -310,16 +493,28 @@ def main(takeout_dir):
         log.info(f"Cleaned up {cleanup_count} exiftool _original backup file(s).")
 
     # 2. Update filesystem modification timestamps (mtime)
-
     if filesystem_updates:
         log.info("Updating local filesystem modification times (os.utime)...")
         updated_mtime_count = 0
+        skipped_mtime_count = 0
         for filepath, ts in filesystem_updates:
             try:
+                # Avoid touching if current mtime is already correct (within 1 second)
+                try:
+                    curr_mtime = os.path.getmtime(filepath)
+                    if abs(curr_mtime - ts) <= 1.0:
+                        skipped_mtime_count += 1
+                        continue
+                except Exception:
+                    pass
                 os.utime(filepath, (ts, ts))
                 updated_mtime_count += 1
             except Exception as e:
                 log.error(f"Failed to update filesystem time for {filepath}: {e}")
+        if skipped_mtime_count > 0:
+            log.info(
+                f"Skipped updating filesystem times for {skipped_mtime_count} files (already accurate)."
+            )
         log.info(f"Filesystem timestamps updated for {updated_mtime_count} files.")
 
     # 3. Save matching indexing logs

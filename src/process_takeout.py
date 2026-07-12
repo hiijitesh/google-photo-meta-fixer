@@ -6,69 +6,36 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from src.logger import log
+from src.utils import parse_filename_time
 
 
-def parse_filename_time(filename):
-    """
-    Optional helper to parse a time signature from filename.
-    Useful for verification/logging.
-    """
-    # Look for typical YYYYMMDD_HHMMSS
-    pattern = re.compile(
-        r"((?:19|20)\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})"
-    )
-    match = pattern.search(filename)
-    if match:
-        year, month, day, hour, minute, second = map(int, match.groups())
-        try:
-            return datetime(year, month, day, hour, minute, second)
-        except ValueError:
-            pass
-    return None
-
-
-def find_matching_media(json_path, media_files):
+def find_matching_media(json_path, media_lower_map, media_base_map):
     """
     Matches a companion JSON file to its corresponding media file in the same directory.
-    Handles Google Takeout quirks including exact matches, duplicate brackets, and truncated names.
+    Uses precomputed dictionaries for O(1) exact matches and optimized fuzzy matching.
     """
     json_name = json_path.name
-    # Clean up multiple dots before .json extension
     json_name = re.sub(r"\.+json$", ".json", json_name, flags=re.IGNORECASE)
-    # Preprocess supplemental metadata files to resolve to their standard json name form
-    # e.g., "photo.jpg.supplemental-metadata.json" -> "photo.jpg.json"
-    # or "photo.jpg.supp.json" -> "photo.jpg.json"
     json_name = re.sub(
         r"\.(sup[a-z-]*)\.json$", ".json", json_name, flags=re.IGNORECASE
     )
 
-    # Strip '.json' to get the base media candidate name
     json_base = json_name[:-5]
     json_base_lower = json_base.lower()
 
-    # 1. Exact Match (Case-sensitive)
-    if json_base in media_files:
-        return json_base
-
-    # 2. Exact Match (Case-insensitive)
-    for f in media_files:
-        if f.lower() == json_base_lower:
-            return f
+    # 1. Exact Match (Case-sensitive & insensitive)
+    if json_base_lower in media_lower_map:
+        return media_lower_map[json_base_lower]
 
     # 3. Suffix shifting / Duplicate brackets
-    # e.g., JSON: "photo.jpg(1).json" -> Media: "photo(1).jpg"
     match = re.match(r"^(.+)\.([a-zA-Z0-9]+)\((\d+)\)\.json$", json_name, re.IGNORECASE)
     if match:
         base_part, ext_part, num_part = match.groups()
-        cand = f"{base_part}({num_part}).{ext_part}"
-        for f in media_files:
-            if f.lower() == cand.lower():
-                return f
+        cand_lower = f"{base_part}({num_part}).{ext_part}".lower()
+        if cand_lower in media_lower_map:
+            return media_lower_map[cand_lower]
 
     # 4. Truncated file names
-    # Google truncates long filenames in the JSON name (usually at ~47-51 chars total).
-    # e.g. JSON: "really_long_name_truncated_to_somethin.jpg.json"
-    # Media: "really_long_name_truncated_to_something.jpg"
     if "." in json_base:
         json_base_no_ext, json_ext = json_base.rsplit(".", 1)
         known_exts = {
@@ -87,45 +54,30 @@ def find_matching_media(json_path, media_files):
             "jp",
         }
         if json_ext.lower() in known_exts:
-            for f in media_files:
-                if "." in f:
-                    f_base_no_ext, f_ext = f.rsplit(".", 1)
-                    # Check if extensions match or are truncated/started extensions (e.g. .mp -> .mp4)
-                    if f_ext.lower().startswith(
-                        json_ext.lower()
-                    ) or json_ext.lower().startswith(f_ext.lower()):
-                        # Match base prefix. Check if shorter base is a prefix of longer base.
-                        min_len = min(len(json_base_no_ext), len(f_base_no_ext))
-                        if (
-                            min_len >= 15
-                        ):  # Safeguard against matching generic short names
-                            if json_base_no_ext[:min_len] == f_base_no_ext[:min_len]:
-                                return f
-        else:
-            # The dot was not for an extension (e.g. package name "com.miui.ga"), treat as no extension
-            for f in media_files:
-                if "." in f:
-                    f_base, _ = f.rsplit(".", 1)
-                    f_base_lower = f_base.lower()
-                    if f_base_lower == json_base_lower:
-                        return f
-                    if len(json_base_lower) >= 15 and f_base_lower.startswith(
-                        json_base_lower
+            for f_base_lower, (f, f_ext_lower) in media_base_map.items():
+                if f_ext_lower.startswith(
+                    json_ext.lower()
+                ) or json_ext.lower().startswith(f_ext_lower):
+                    min_len = min(len(json_base_no_ext), len(f_base_lower))
+                    if (
+                        min_len >= 15
+                        and json_base_no_ext[:min_len] == f_base_lower[:min_len]
                     ):
                         return f
-    else:
-        # No extension in json_base (e.g. "photo.json" matching "photo.jpg" or truncated name like "00100sPORTRAIT_00100_BURST20220301140511058_CO.json" -> "00100sPORTRAIT_00100_BURST20220301140511058_COVER.jpg")
-        for f in media_files:
-            if "." in f:
-                f_base, _ = f.rsplit(".", 1)
-                f_base_lower = f_base.lower()
+        else:
+            for f_base_lower, (f, f_ext_lower) in media_base_map.items():
                 if f_base_lower == json_base_lower:
                     return f
-                # Prefix matching for truncated filenames with no extension in the JSON base
                 if len(json_base_lower) >= 15 and f_base_lower.startswith(
                     json_base_lower
                 ):
                     return f
+    else:
+        for f_base_lower, (f, f_ext_lower) in media_base_map.items():
+            if f_base_lower == json_base_lower:
+                return f
+            if len(json_base_lower) >= 15 and f_base_lower.startswith(json_base_lower):
+                return f
 
     return None
 
@@ -164,6 +116,8 @@ def main(takeout_dir):
         # Separate JSON files and media files
         json_files = []
         media_files = []
+        media_lower_map = {}
+        media_base_map = {}
         for f in files:
             if f.startswith("."):
                 continue
@@ -171,6 +125,12 @@ def main(takeout_dir):
                 json_files.append(f)
             else:
                 media_files.append(f)
+                media_lower_map[f.lower()] = f
+                if "." in f:
+                    f_base, f_ext = f.rsplit(".", 1)
+                    media_base_map[f_base.lower()] = (f, f_ext.lower())
+                else:
+                    media_base_map[f.lower()] = (f, "")
 
         if not json_files:
             continue
@@ -198,7 +158,9 @@ def main(takeout_dir):
                 continue
 
             # Try to match with media file
-            matched_media_name = find_matching_media(json_path, media_files)
+            matched_media_name = find_matching_media(
+                json_path, media_lower_map, media_base_map
+            )
             if not matched_media_name:
                 unmatched_count += 1
                 unmatched_records.append(

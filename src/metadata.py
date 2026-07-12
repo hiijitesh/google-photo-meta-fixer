@@ -5,48 +5,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from src.sync import run_rclone_commands, prompt_and_refresh_index
 from src.logger import log
-
-# Regex patterns for matching date/time from filenames
-RE_UNIX_MS = re.compile(r"^(\d{13})")
-RE_DATE_TIME = re.compile(
-    r"((?:19|20)\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})"
-)
-
-
-def parse_filename_time(filename):
-    """Try to parse local time from filename patterns."""
-    # 1) Try 13-digit unix timestamp (in ms)
-    ms_match = RE_UNIX_MS.search(filename)
-    if ms_match:
-        ts_ms = int(ms_match.group(1))
-        dt = datetime.fromtimestamp(ts_ms / 1000.0)
-        return dt
-
-    # 2) Try standard YYYYMMDD_HHMMSS
-    dt_match = RE_DATE_TIME.search(filename)
-    if dt_match:
-        year, month, day, hour, minute, second = map(int, dt_match.groups())
-        try:
-            return datetime(year, month, day, hour, minute, second)
-        except ValueError:
-            pass
-
-    return None
-
-
-def names_match(dir_name, csv_name):
-    if dir_name == csv_name:
-        return True
-    dir_base, _ = os.path.splitext(dir_name)
-    csv_base, _ = os.path.splitext(csv_name)
-    dir_base = dir_base.replace("-edited", "")
-    csv_base = csv_base.replace("-edited", "")
-    if dir_base == csv_base:
-        return True
-    if len(dir_base) >= 20 and len(csv_base) >= 20:
-        if dir_base.startswith(csv_base) or csv_base.startswith(dir_base):
-            return True
-    return False
+from src.utils import parse_filename_time, names_match
 
 
 def match_files_to_csv(photo_files, csv_rows):
@@ -54,9 +13,17 @@ def match_files_to_csv(photo_files, csv_rows):
     Matches local photo filepaths to CSV entries.
     Ensures exact matches take priority and prevents duplicate matching.
     """
+    matched_results = {}
+    matched_csv_indices = set()
+
     # Pre-parse CSV datetimes for time-based matching
+    csv_by_filename = {}
     parsed_csv_rows = []
     for i, row in enumerate(csv_rows):
+        filename = row.get("fileName", "").strip()
+        if filename:
+            csv_by_filename.setdefault(filename.lower(), []).append(i)
+
         taken_at = row.get("takenAt", "")
         offset = row.get("timezoneOffsetMs", "0")
         local_dt = None
@@ -64,88 +31,56 @@ def match_files_to_csv(photo_files, csv_rows):
             try:
                 dt_str = taken_at.split(".")[0].replace("Z", "")
                 dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%S")
-                if not offset:
-                    offset = 0
-                offset_td = timedelta(milliseconds=float(offset))
+                offset_td = timedelta(milliseconds=float(offset or 0))
                 local_dt = dt + offset_td
             except:
                 pass
-        parsed_csv_rows.append({"index": i, "local_dt": local_dt, "row": row})
+        parsed_csv_rows.append(
+            {"index": i, "local_dt": local_dt, "row": row, "filename": filename}
+        )
 
-    matched_results = {}
-    matched_csv_indices = set()
-    unmatched_files = list(photo_files)
-
-    # Pass 1: Exact matches
-    csv_by_filename = {}
-    for i, row in enumerate(csv_rows):
-        fn = row.get("fileName", "").strip()
-        if fn:
-            csv_by_filename.setdefault(fn, []).append(i)
-
-    remaining_unmatched = []
-    for filepath in unmatched_files:
+    for filepath in photo_files:
         filename = os.path.basename(filepath)
-        indices = csv_by_filename.get(filename, [])
-        matched = False
-        for idx in indices:
-            if idx not in matched_csv_indices:
-                matched_results[filepath] = (csv_rows[idx], idx)
-                matched_csv_indices.add(idx)
-                matched = True
-                break
-        if not matched:
-            remaining_unmatched.append(filepath)
-    unmatched_files = remaining_unmatched
+        filename_lower = filename.lower()
+        matched_idx = -1
 
-    # Pass 2: Fuzzy matching (names_match)
-    remaining_unmatched = []
-    for filepath in unmatched_files:
-        filename = os.path.basename(filepath)
-        matched = False
-        for i, row in enumerate(csv_rows):
-            if i in matched_csv_indices:
-                continue
-            if names_match(filename, row.get("fileName", "")):
-                matched_results[filepath] = (row, i)
-                matched_csv_indices.add(i)
-                matched = True
-                break
-        if not matched:
-            remaining_unmatched.append(filepath)
-    unmatched_files = remaining_unmatched
+        # 1. Exact / Case-insensitive
+        if filename_lower in csv_by_filename:
+            for idx in csv_by_filename[filename_lower]:
+                if idx not in matched_csv_indices:
+                    matched_idx = idx
+                    break
 
-    # Pass 3: Time-based matching
-    remaining_unmatched = []
-    for filepath in unmatched_files:
-        filename = os.path.basename(filepath)
-        local_time_from_name = parse_filename_time(filename)
-        matched = False
-        if local_time_from_name:
-            closest_entry = None
-            min_diff = float("inf")
+        # 2. Fuzzy match
+        if matched_idx == -1:
             for entry in parsed_csv_rows:
                 idx = entry["index"]
-                if idx in matched_csv_indices:
-                    continue
-                if entry["local_dt"]:
-                    diff = abs(
-                        (entry["local_dt"] - local_time_from_name).total_seconds()
-                    )
-                    if diff < min_diff:
-                        min_diff = diff
-                        closest_entry = entry
-            if closest_entry is not None and min_diff < 7200:  # 2 hours
-                idx = closest_entry["index"]
-                matched_results[filepath] = (closest_entry["row"], idx)
-                matched_csv_indices.add(idx)
-                matched = True
-        if not matched:
-            remaining_unmatched.append(filepath)
+                if idx not in matched_csv_indices and names_match(
+                    filename, entry["filename"]
+                ):
+                    matched_idx = idx
+                    break
 
-    # Pass 4: Anything left unmatched
-    for filepath in remaining_unmatched:
-        matched_results[filepath] = (None, -1)
+        # 3. Time-based match
+        if matched_idx == -1:
+            local_time_from_name = parse_filename_time(filename)
+            if local_time_from_name:
+                min_diff = float("inf")
+                for entry in parsed_csv_rows:
+                    idx = entry["index"]
+                    if idx not in matched_csv_indices and entry["local_dt"]:
+                        diff = abs(
+                            (entry["local_dt"] - local_time_from_name).total_seconds()
+                        )
+                        if diff < min_diff and diff < 7200:
+                            min_diff = diff
+                            matched_idx = idx
+
+        if matched_idx != -1:
+            matched_results[filepath] = (csv_rows[matched_idx], matched_idx)
+            matched_csv_indices.add(matched_idx)
+        else:
+            matched_results[filepath] = (None, -1)
 
     return matched_results, matched_csv_indices
 
@@ -354,7 +289,7 @@ def cmd_metadata_fix_local(csv_path, photos_dir):
         log.warning(f"Unmatched files (first 10): {unmatched[:10]}")
 
 
-def cmd_metadata_verify_csv(csv_path, photos_dir, show_missing=False):
+def cmd_metadata_verify_csv(csv_path, photos_dir):
     import csv
     import subprocess
 
@@ -502,15 +437,14 @@ def cmd_metadata_verify_csv(csv_path, photos_dir, show_missing=False):
     ]
     log.info(f"CSV entries not found in directory: {len(missing_from_dir)}")
 
-    if show_missing:
-        if missing_from_dir:
-            log.info("Files in CSV but missing from directory:")
-            for name in missing_from_dir:
-                log.info(f"  ❌ {name}")
-        if not_in_csv:
-            log.info("Files in directory but not found in CSV:")
-            for name in not_in_csv:
-                log.info(f"  ❓ {name}")
+    if missing_from_dir:
+        log.info("Files in CSV but missing from directory:")
+        for name in missing_from_dir:
+            log.info(f"  ❌ {name}")
+    if not_in_csv:
+        log.info("Files in directory but not found in CSV:")
+        for name in not_in_csv:
+            log.info(f"  ❓ {name}")
 
     if mismatches:
         log.info("Mismatch details (First 10):")
@@ -689,38 +623,14 @@ def parse_date_from_path(filepath):
             month_str = parent_match.group(2)
             year = int(gp_match.group(2))
 
-            months_map = {
-                "january": 1,
-                "february": 2,
-                "march": 3,
-                "april": 4,
-                "may": 5,
-                "june": 6,
-                "july": 7,
-                "august": 8,
-                "september": 9,
-                "october": 10,
-                "november": 11,
-                "december": 12,
-                "jan": 1,
-                "feb": 2,
-                "mar": 3,
-                "apr": 4,
-                "may": 5,
-                "jun": 6,
-                "jul": 7,
-                "aug": 8,
-                "sep": 9,
-                "oct": 10,
-                "nov": 11,
-                "dec": 12,
-            }
-            if month_str in months_map:
-                month = months_map[month_str]
+            try:
                 try:
-                    return datetime(year, month, day, 12, 0, 0)
+                    dt = datetime.strptime(f"{year} {month_str} {day}", "%Y %B %d")
                 except ValueError:
-                    pass
+                    dt = datetime.strptime(f"{year} {month_str} {day}", "%Y %b %d")
+                return dt.replace(hour=12)
+            except ValueError:
+                pass
     return None
 
 

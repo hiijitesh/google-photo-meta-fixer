@@ -29,7 +29,7 @@ Available subcommands and their usage:
 2. Metadata (Audit & fix timestamps)
    - gp-cleaner metadata fix-drive [--remote REMOTE]
    - gp-cleaner metadata fix-local --csv CSV --dir DIR
-   - gp-cleaner metadata verify-csv --csv CSV --dir DIR [--show-missing]
+   - gp-cleaner metadata verify-csv --csv CSV --dir DIR
    - gp-cleaner metadata verify-takeout
    - gp-cleaner metadata fix-filename --dir DIR [--flatten]
 
@@ -110,12 +110,6 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
     verify_csv_parser.add_argument(
         "--dir", required=True, help="Directory containing photos"
     )
-    verify_csv_parser.add_argument(
-        "--show-missing",
-        action="store_true",
-        default=False,
-        help="Print the full list of files missing from directory and extra files not in CSV",
-    )
 
     meta_sub.add_parser(
         "verify-takeout",
@@ -170,18 +164,6 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
         required=True,
         help="Directory containing _MP.jpg and companion video files",
     )
-    bind_motion_parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=False,
-        help="Print what would be done without modifying any files",
-    )
-    bind_motion_parser.add_argument(
-        "--keep-video",
-        action="store_true",
-        default=False,
-        help="Keep the standalone video file after embedding (default: delete it)",
-    )
 
     args = parser.parse_args()
 
@@ -199,7 +181,7 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
         elif args.subcommand == "fix-local":
             cmd_metadata_fix_local(args.csv, args.dir)
         elif args.subcommand == "verify-csv":
-            cmd_metadata_verify_csv(args.csv, args.dir, show_missing=args.show_missing)
+            cmd_metadata_verify_csv(args.csv, args.dir)
         elif args.subcommand == "verify-takeout":
             cmd_metadata_verify_takeout()
         elif args.subcommand == "fix-filename":
@@ -219,7 +201,7 @@ Use 'gp-cleaner [command] --help' or 'gp-cleaner [command] [subcommand] --help' 
         elif args.subcommand == "bind-motion":
             import src.bind_motion as bm
 
-            bm.main(args.dir, dry_run=args.dry_run, keep_video=args.keep_video)
+            bm.main(args.dir)
 
 
 if __name__ == "__main__":

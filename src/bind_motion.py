@@ -162,19 +162,15 @@ def find_companion_video(jpeg_path: Path, all_filenames: set) -> Path | None:
     return None
 
 
-def main(directory: str, dry_run: bool = False, keep_video: bool = False):
+def main(directory: str):
     """
     Bind companion motion video files into their paired JPEG photos,
     producing Google Motion Photo v1 (MicroVideo) format.
 
     Args:
         directory:  Path to the folder containing _MP.jpg + _MP.MP4 pairs.
-        dry_run:    If True, print actions without modifying any files.
-        keep_video: If True, leave the standalone video file after embedding.
     """
     log.info("=== Google Motion Photo Binder ===")
-    if dry_run:
-        log.info("DRY RUN mode — no files will be modified.")
 
     dir_path = Path(directory)
     if not dir_path.is_dir():
@@ -215,13 +211,9 @@ def main(directory: str, dry_run: bool = False, keep_video: bool = False):
 
         video_size = video_path.stat().st_size
         log.info(
-            f"  {'[DRY] ' if dry_run else ''}Binding: {photo_path.name}"
+            f"  Binding: {photo_path.name}"
             f" + {video_path.name} ({video_size:,} B video)"
         )
-
-        if dry_run:
-            bound_count += 1
-            continue
 
         try:
             with open(photo_path, "rb") as f:
@@ -237,9 +229,8 @@ def main(directory: str, dry_run: bool = False, keep_video: bool = False):
                 f.write(modified_jpeg)
                 f.write(video_bytes)
 
-            if not keep_video:
-                video_path.unlink()
-                log.debug(f"    Removed standalone video: {video_path.name}")
+            video_path.unlink()
+            log.debug(f"    Removed standalone video: {video_path.name}")
 
             bound_count += 1
 
@@ -253,5 +244,3 @@ def main(directory: str, dry_run: bool = False, keep_video: bool = False):
     log.info(f"  Skipped (no video):   {skipped_no_video}")
     log.info(f"  Skipped (pre-bound):  {skipped_already_bound}")
     log.info(f"  Failed:               {failed_count}")
-    if dry_run:
-        log.info("  (Dry run — no files were modified)")
